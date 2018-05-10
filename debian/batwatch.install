@@ -1,0 +1,3 @@
+src/etc/* etc
+src/usr/* usr
+LICENSE usr/share/doc/batwatch

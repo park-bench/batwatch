@@ -1,0 +1,4 @@
+./src/etc/batwatch
+./src/etc/init.d
+./src/usr/share
+./LICENSE
