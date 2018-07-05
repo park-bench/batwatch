@@ -15,25 +15,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Verifies a website is running over Tor and sends an encrypted e-mail notification when
-the site's availability changes.  Uses urllib to fetch the site using SocksiPy for Tor over
-the SOCKS_PORT.
+"""Daemonize the batwatch.
 """
 
 # TODO: Eventually consider running in a chroot or jail.
 # TODO: Eventually check to see if the network/internet connection is down.
 
-__author__ = 'Joel Luellwitz and Andrew Klapp'
-__version__ = '0.8'
+__author__ = 'Joel Luellwitz, Emily Klapp, and Brittney Scaccia'
+__version__ = '0.1'
 
 import confighelper
 import ConfigParser
 import daemon
-import datetime
 import gpgmailmessage
 import grp
 import logging
 import os
+
 # TODO: Remove try/except when we drop support for Ubuntu 14.04 LTS.
 try:
     from lockfile import pidlockfile
@@ -42,14 +40,12 @@ except ImportError:
 import pwd
 import random
 import signal
-import socket
-import socks
 import stat
-import stem.process
 import sys
 import time
 import traceback
-import urllib
+from pydbus import SystemBus
+from batwatch import Batwatch
 
 # Constants
 PROGRAM_NAME = 'batwatch'
@@ -60,7 +56,6 @@ PID_FILE = '%s.pid' % PROGRAM_NAME
 LOG_DIR = os.path.join('/var/log', PROGRAM_NAME)
 LOG_FILE = '%s.log' % PROGRAM_NAME
 SYSTEM_DATA_DIR = '/var/cache'
-# TOR_DATA_DIRS = os.path.join(PROGRAM_NAME, 'tor')
 PROCESS_USERNAME = PROGRAM_NAME
 PROCESS_GROUP_NAME = PROGRAM_NAME
 
@@ -124,12 +119,12 @@ def read_configuration_and_create_logger(program_uid, program_gid):
     # config['url'] = config_helper.verify_string_exists(config_parser, 'url')
     # config['tor_socks_port'] = config_helper.verify_integer_exists(
     #     config_parser, 'tor_socks_port')
-    # config['average_delay'] = config_helper.verify_number_exists(
-    #     config_parser, 'average_delay')
+    config['average_delay'] = config_helper.verify_number_exists(
+        config_parser, 'average_delay')
     # config['email_subject'] = config_helper.verify_string_exists(
     #     config_parser, 'email_subject')
 
-    return (config, config_helper, logger)
+    return config, config_helper, logger
 
 
 def create_directory(system_path, program_dirs, uid, gid, mode):
@@ -167,21 +162,6 @@ def drop_permissions_forever(uid, gid):
     os.initgroups(PROCESS_USERNAME, gid)
     os.setgid(gid)
     os.setuid(uid)
-
-
-def configure_tor_proxy(config):
-    """Configures the tor proxy settings.
-
-    config: The program configuration object, mostly based on the configuration file.
-    """
-    # Set socks proxy and wrap the urllib module
-    # TODO: Eventually consider choosing a randomly available TCP port.
-    socks.setdefaultproxy(
-        socks.PROXY_TYPE_SOCKS5, '127.0.0.1', int(config['tor_socks_port']))
-    socket.socket = socks.socksocket
-    # Perform DNS resolution through the socket.
-    socket.getaddrinfo = lambda *args: [(
-        socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
 
 
 def sig_term_handler(signal, stack_frame):
@@ -264,14 +244,30 @@ def main_loop(config):
     # Uses /dev/urandom, for determining how long to sleep the main loop.
     random.SystemRandom()
 
-    logger.trace('Starting loop.')
+    logger.trace('I\'mma watch the bat now.')
+
+    bus = SystemBus()
+    proxy = bus.get('.UPower', 'devices/battery_BAT0')
+
+    # Use UPower to get a list of the battery devices.
+    # Then iterate through them manually to check their status.
+    # Alert if there is a status change. (Or if there is a specific status change.)
+    # Be sure you know what each state number represents.
+
     while True:
-        logger.info('OK I started the main loop')
-        # Let's not be too obvious about what this program does. Ramdomize the time between
-        #   status checks.
-        sleep_seconds = random.uniform(0, int(config['average_delay']))
-        logger.trace('Sleeping for %d seconds.' % sleep_seconds)
-        time.sleep(sleep_seconds)
+        print(proxy.State)
+        time.sleep(3)
+
+    # batwatch = Batwatch()
+    # batwatch.watch_the_bat()
+
+    # while True:
+    #     logger.info('OK I started the main loop')
+    #     # Let's not be too obvious about what this program does. Ramdomize the time between
+    #     #   status checks.
+    #     sleep_seconds = random.uniform(0, int(config['average_delay']))
+    #     logger.trace('Sleeping for %d seconds.' % sleep_seconds)
+    #     time.sleep(sleep_seconds)
 
 
 program_uid, program_gid = get_user_and_group_ids()

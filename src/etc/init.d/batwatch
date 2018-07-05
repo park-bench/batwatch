@@ -18,7 +18,7 @@
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
 DESC="The Batwatch"
 NAME=batwatch
-DAEMON=/usr/share/batwatch/$NAME.py
+DAEMON=/usr/share/$NAME/$NAME-daemon.py
 PIDFILE=/run/$NAME/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
 
