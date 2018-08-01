@@ -244,30 +244,9 @@ def main_loop(config):
     # Uses /dev/urandom, for determining how long to sleep the main loop.
     random.SystemRandom()
 
-    logger.trace('I\'mma watch the bat now.')
-
-    bus = SystemBus()
-    proxy = bus.get('.UPower', 'devices/battery_BAT0')
-
-    # Use UPower to get a list of the battery devices.
-    # Then iterate through them manually to check their status.
-    # Alert if there is a status change. (Or if there is a specific status change.)
-    # Be sure you know what each state number represents.
-
-    while True:
-        print(proxy.State)
-        time.sleep(3)
-
-    # batwatch = Batwatch()
-    # batwatch.watch_the_bat()
-
-    # while True:
-    #     logger.info('OK I started the main loop')
-    #     # Let's not be too obvious about what this program does. Ramdomize the time between
-    #     #   status checks.
-    #     sleep_seconds = random.uniform(0, int(config['average_delay']))
-    #     logger.trace('Sleeping for %d seconds.' % sleep_seconds)
-    #     time.sleep(sleep_seconds)
+    logger.info('I\'mma watch the bat now.')
+    batwatch = Batwatch()
+    batwatch.watch_the_bat()
 
 
 program_uid, program_gid = get_user_and_group_ids()
@@ -295,3 +274,4 @@ except Exception as exception:
     logger.critical('Fatal %s: %s\n%s' % (type(exception).__name__, exception.message,
                                           traceback.format_exc()))
     raise exception
+

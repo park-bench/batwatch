@@ -18,9 +18,31 @@
 
 import logging
 import time
+import gpgmailmessage
 from pydbus import SystemBus
 
 UPOWER_BUS_NAME = 'org.freedesktop.UPower'
+
+
+class ChargeStatus:
+    Fully_Charged, Charging, Discharging, No_Battery = range(4)
+
+
+class CompositeStatus:
+
+    def __init__(self, num_batteries, charge_status):
+        self.num_batteries = num_batteries
+        self.charge_status = charge_status
+
+    def __str__(self):
+        return str(self.__dict__)
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
 
 class Batwatch:
 
@@ -40,18 +62,15 @@ class Batwatch:
         bus = SystemBus()
         current_status = get_composite_status(bus)
 
-        self.logger.debug(current_status)
-        self.logger.debug(current_status.__dict__)
+        self.logger.debug('Initial status is: {}'.format(current_status))
 
         while True:
             new_status = get_composite_status(bus)
             if current_status != new_status:
-                # send mail
+                send_status_email(current_status, new_status)
                 current_status = new_status
-            print(current_status.__dict__)
-            print(new_status.__dict__)
-            self.logger.debug(current_status.__dict__)
-            self.logger.debug(new_status.__dict__)
+            self.logger.debug('Previous status was: {}'.format(current_status))
+            self.logger.debug('New status is: {}'.format(new_status))
             time.sleep(5)
 
 
@@ -62,10 +81,10 @@ def get_composite_status(bus):
     charge_status = ChargeStatus.Fully_Charged
 
     batteries = []
-    for device in device_names:
-        this_device = bus.get(UPOWER_BUS_NAME, device)
-        if this_device.PowerSupply is True and this_device.Type in (2, 3):  # Type 2 = Battery, Type 3 = UPS
-            batteries.append(this_device)
+    for device_name in device_names:
+        device = bus.get(UPOWER_BUS_NAME, device_name)
+        if device.PowerSupply is True and device.Type in (2, 3):  # Type 2 = Battery, Type 3 = UPS
+            batteries.append(device)
 
     if not batteries:
         charge_status = ChargeStatus.No_Battery
@@ -80,26 +99,20 @@ def get_composite_status(bus):
         for battery in batteries:
             if battery.State == 1:
                 charge_status = ChargeStatus.Charging
+                break
 
     return CompositeStatus(len(batteries), charge_status)
 
 
-class ChargeStatus:
-    Fully_Charged, Charging, Discharging, No_Battery = range(4)
+def send_status_email(current_status, new_status):
 
+    email = gpgmailmessage.GpgMailMessage()
+    email.set_subject("This is a hard-coded subject")
 
-class CompositeStatus:
+    email.set_body(
+        'Yo dawg, I herd u like bats. Well, ur bat status just changed. It was {} but now it\'s {}. Check that shit.'
+        .format(current_status, new_status)
+    )
 
-    def __init__(self, num_batteries, charge_status):
-        self.num_batteries = num_batteries
-        self.charge_status = charge_status
+    email.queue_for_sending()
 
-    def __eq__(self, other):
-        return self.__dict__ == other.__dict__
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-
-batwatch = Batwatch()
-batwatch.watch_the_bat()
