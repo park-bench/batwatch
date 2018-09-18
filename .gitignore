@@ -3,9 +3,10 @@
 debian/debhelper-build-stamp
 debian/files
 debian/tmp
-debian/torwatchdog.debhelper.log
-debian/torwatchdog.substvars
+debian/batwatch.debhelper.log
+debian/batwatch.substvars
 debian/batwatch/*
 debian/tmp
+debian/.debhelper/*
 *.pyc
 *.swp

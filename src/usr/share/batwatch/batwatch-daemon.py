@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 
-# Copyright 2015-2018 Joel Allen Luellwitz and Andrew Klapp
+# Copyright 2015-2018 Joel Allen Luellwitz, Emily Klapp and Brittney Scaccia.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,19 +15,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Daemonize the batwatch.
-"""
+"""Daemonize the Batwatch battery monitor."""
 
 # TODO: Eventually consider running in a chroot or jail.
 # TODO: Eventually check to see if the network/internet connection is down.
 
 __author__ = 'Joel Luellwitz, Emily Klapp, and Brittney Scaccia'
-__version__ = '0.1'
+__version__ = '0.8'
 
 import confighelper
 import ConfigParser
 import daemon
-import gpgmailmessage
 import grp
 import logging
 import os
@@ -45,7 +43,7 @@ import sys
 import time
 import traceback
 from pydbus import SystemBus
-from batwatch import Batwatch
+import batwatch
 
 # Constants
 PROGRAM_NAME = 'batwatch'
@@ -58,6 +56,13 @@ LOG_FILE = '%s.log' % PROGRAM_NAME
 SYSTEM_DATA_DIR = '/var/cache'
 PROCESS_USERNAME = PROGRAM_NAME
 PROCESS_GROUP_NAME = PROGRAM_NAME
+PROGRAM_UMASK = 0o027  # -rw-r----- and drwxr-x---
+
+
+class InitializationException(Exception):
+    """Indicates an expected fatal error occurred during program initialization.
+    Initialization is implied to mean, before daemonization.
+    """
 
 
 def get_user_and_group_ids():
@@ -68,10 +73,14 @@ def get_user_and_group_ids():
     try:
         program_user = pwd.getpwnam(PROCESS_USERNAME)
     except KeyError as key_error:
+        # TODO: When switching to Python 3, convert to chained exception. (gpgmailer issue 15)
+        print('User %s does not exist.' % PROCESS_USERNAME)
         raise Exception('User %s does not exist.' % PROCESS_USERNAME, key_error)
     try:
         program_group = grp.getgrnam(PROCESS_GROUP_NAME)
     except KeyError as key_error:
+        # TODO: When switching to Python 3, convert to chained exception. (gpgmailer issue 15)
+        print('Group %s does not exist.' % PROCESS_GROUP_NAME)
         raise Exception('Group %s does not exist.' % PROCESS_GROUP_NAME, key_error)
 
     return program_user.pw_uid, program_group.gr_gid
@@ -86,6 +95,12 @@ def read_configuration_and_create_logger(program_uid, program_gid):
     program_gid: The system group ID this program should drop to before daemonization.
     Returns the read system config, a confighelper instance, and a logger instance.
     """
+    print('Reading %s...' % CONFIGURATION_PATHNAME)
+
+    if not os.path.isfile(CONFIGURATION_PATHNAME):
+        raise InitializationException(
+            'Configuration file %s does not exist. Quitting.' % CONFIGURATION_PATHNAME)
+
     config_parser = ConfigParser.SafeConfigParser()
     config_parser.read(CONFIGURATION_PATHNAME)
 
@@ -94,10 +109,9 @@ def read_configuration_and_create_logger(program_uid, program_gid):
     config_helper = confighelper.ConfigHelper()
     config['log_level'] = config_helper.verify_string_exists(config_parser, 'log_level')
 
-    # Create logging directory.
-    log_mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | \
-               stat.S_IROTH | stat.S_IXOTH
-    # TODO: Look into defaulting the logging to the console until the program gets more
+    # Create logging directory.  drwxr-x--- batwatch batwatch
+    log_mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP
+    # TODO: Look into defaulting the logging to the console until the program gets more (gpgmailer issue 18)
     #   bootstrapped.
     print('Creating logging directory %s.' % LOG_DIR)
     if not os.path.isdir(LOG_DIR):
@@ -116,15 +130,26 @@ def read_configuration_and_create_logger(program_uid, program_gid):
     logger = logging.getLogger('%s-daemon' % PROGRAM_NAME)
 
     logger.info('Verifying non-logging config')
-    # config['url'] = config_helper.verify_string_exists(config_parser, 'url')
-    # config['tor_socks_port'] = config_helper.verify_integer_exists(
-    #     config_parser, 'tor_socks_port')
-    config['average_delay'] = config_helper.verify_number_exists(
-        config_parser, 'average_delay')
-    # config['email_subject'] = config_helper.verify_string_exists(
-    #     config_parser, 'email_subject')
+    config['delay'] = config_helper.verify_number_exists(config_parser, 'delay')
+    config['email_subject'] = config_helper.verify_string_exists(config_parser, 'email_subject')
 
     return config, config_helper, logger
+
+
+# TODO: Consider checking ACLs. (gpgmailer issue 22)
+def verify_safe_file_permissions():
+    """Crashes the application if unsafe file permissions exist on application configuration
+    files.
+    """
+    # The configuration file should be owned by root.
+    config_file_stat = os.stat(CONFIGURATION_PATHNAME)
+    if config_file_stat.st_uid != 0:
+        raise InitializationException(
+            'File %s must be owned by root.' % CONFIGURATION_PATHNAME)
+    if bool(config_file_stat.st_mode & (stat.S_IROTH | stat.S_IWOTH | stat.S_IXOTH)):
+        raise InitializationException(
+            "File %s cannot have 'other user' access permissions set."
+            % CONFIGURATION_PATHNAME)
 
 
 def create_directory(system_path, program_dirs, uid, gid, mode):
@@ -190,7 +215,7 @@ def setup_daemon_context(log_file_handle, program_uid, program_gid):
         working_directory='/',
         pidfile=pidlockfile.PIDLockFile(
             os.path.join(SYSTEM_PID_DIR, PROGRAM_PID_DIRS, PID_FILE)),
-        umask=0o117,  # Read/write by user and group.
+        umask=PROGRAM_UMASK,
     )
 
     daemon_context.signal_map = {
@@ -199,64 +224,28 @@ def setup_daemon_context(log_file_handle, program_uid, program_gid):
 
     daemon_context.files_preserve = [log_file_handle]
 
-    # Set the UID and PID to 'torwatchdog' user and group.
+    # Set the UID and PID to 'batwatch' user and group.
     daemon_context.uid = program_uid
     daemon_context.gid = program_gid
 
     return daemon_context
 
 
-def print_bootstrap_lines(line):
-    """Callback to log only Tor's bootstrap lines.
-
-    line: A Tor log line.
-    """
-    if 'Bootstrapped ' in line:
-        logger.info('%s' % line)
-
-
-def log_and_send_message(config, message, email_error_message):
-    """Logs and sends an e-mail of a message.
-
-    config: The program configuration object, mostly based on the configuration file.
-    message: The e-mail message body.
-    email_error_message: A message to log in the event of an error while sending the e-mail.
-    """
-    logger.warn(message)
-
-    try:
-        mail_message = gpgmailmessage.GpgMailMessage()
-        mail_message.set_subject(config['email_subject'])
-        mail_message.set_body(message)
-        mail_message.queue_for_sending()
-    except Exception as detail:
-        logger.error('%s %s: %s', email_error_message, (
-            type(detail).__name__, detail.message))
-        logger.error(traceback.format_exc())
-
-
-def main_loop(config):
-    """The main program loop.
-
-    config: The program configuration object, mostly based on the configuration file.
-    """
-
-    # Uses /dev/urandom, for determining how long to sleep the main loop.
-    random.SystemRandom()
-
-    logger.info('I\'mma watch the bat now.')
-    batwatch = Batwatch()
-    batwatch.watch_the_bat()
-
-
+os.umask(PROGRAM_UMASK)
 program_uid, program_gid = get_user_and_group_ids()
-
 config, config_helper, logger = read_configuration_and_create_logger(
     program_uid, program_gid)
 
 try:
+
+    verify_safe_file_permissions()
+
+    # Re-establish root permissions to create required directories.
+    os.seteuid(os.getuid())
+    os.setegid(os.getgid())
+
     # Non-root users cannot create files in /run, so create a directory that can be written
-    #   to. Full access to user only.
+    #   to. Full access to user only.  drwx------
     create_directory(
         SYSTEM_PID_DIR, PROGRAM_PID_DIRS, program_uid, program_gid,
         stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
@@ -267,11 +256,14 @@ try:
     daemon_context = setup_daemon_context(
         config_helper.get_log_file_handle(), program_uid, program_gid)
 
+    logger.debug('Initializing Batwatch.')
+    batwatch = batwatch.Batwatch(config)
+
     with daemon_context:
-        main_loop(config)
+        batwatch.watch_the_bat()
 
 except Exception as exception:
-    logger.critical('Fatal %s: %s\n%s' % (type(exception).__name__, exception.message,
+    logger.critical('Fatal %s: %s\n%s' % (type(exception).__name__, str(exception),
                                           traceback.format_exc()))
     raise exception
 

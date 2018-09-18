@@ -1,7 +1,6 @@
 #!/usr/bin/env python2
 
-# Copyright 2015-2018 Joel Allen Luellwitz, Emily Klapp and Brittney
-# Scaccia.
+# Copyright 2015-2018 Joel Allen Luellwitz, Emily Klapp and Brittney Scaccia.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,22 +15,30 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+Handles battery change status monitoring and e-mail notifications for Batwatch.
+"""
+
+__author__ = 'Joel Luellwitz, Emily Klapp, and Brittney Scaccia'
+__version__ = '0.8'
+
 import logging
 import time
 import gpgmailmessage
 from pydbus import SystemBus
 
 UPOWER_BUS_NAME = 'org.freedesktop.UPower'
+SYSTEM_BUS = SystemBus()
+FULLY_CHARGED, CHARGING, DISCHARGING, NO_BATTERY = range(4)
 
 
-class ChargeStatus:
-    Fully_Charged, Charging, Discharging, No_Battery = range(4)
+class CompositeStatus(object):
+    """
+    Describes battery status information that Batwatch should monitor for changes.
+    """
 
-
-class CompositeStatus:
-
-    def __init__(self, num_batteries, charge_status):
-        self.num_batteries = num_batteries
+    def __init__(self, battery_count, charge_status):
+        self.battery_count = battery_count
         self.charge_status = charge_status
 
     def __str__(self):
@@ -44,75 +51,116 @@ class CompositeStatus:
         return not self.__eq__(other)
 
 
-class Batwatch:
+class Batwatch(object):
+    """
+    Monitors the status of system battery and notifies designated recipient(s) of changes
+    by gpgmailer encrypted email.
+    """
 
-    def __init__(self):
-        self.logger = logging.getLogger('BATWATCH')
+    def __init__(self, config):
+        """
+        Start Batwatch with its configuration, logger, and reference to the UPower bus.
+
+        config: Object containing Batwatch configuration details.
+        """
+        self.logger = logging.getLogger('Batwatch')
+        self.upower_bus = SYSTEM_BUS.get(UPOWER_BUS_NAME)
+        self.config = config
 
     def watch_the_bat(self):
-        self.logger.info('Hi, I\'m watching the bat')
+        """
+        Continuously monitor the status of all batteries attached to the device Batwatch is running
+        on, and queue a status email to a configured recipient if anything changes.
+        """
+        self.logger.debug('Watching the battery status.')
 
-        # Get the initial composite status
-        # in an endless loop:
-        # 1) get a new composite status
-        # 2) compare it to the old one
-        # 3) if they're different, do stuff like send an email with the old and new values.
-        # 4) save the new composite status as the old one
-
-        bus = SystemBus()
-        current_status = get_composite_status(bus)
-
-        self.logger.debug('Initial status is: {}'.format(current_status))
+        current_status = FULLY_CHARGED
 
         while True:
-            new_status = get_composite_status(bus)
+            new_status = self._get_composite_status()
             if current_status != new_status:
-                send_status_email(current_status, new_status)
+                self.logger.warn('A change in the battery status was detected. \nNEW STATUS: {} \nOLD STATUS: {}'
+                                 .format(current_status, new_status))
+                self._send_status_email(current_status, new_status)
                 current_status = new_status
-            self.logger.debug('Previous status was: {}'.format(current_status))
-            self.logger.debug('New status is: {}'.format(new_status))
-            time.sleep(5)
+            time.sleep(int(self.config['delay']))
 
+    def _get_composite_status(self):
+        """
+        Get status information about batteries connected to the device Batwatch is running on,
+         including the charge status, such that:
+        * If any battery is discharging, charge status is Discharging.
+          (Assume any status other than Charging or Fully Charged is equivalent to Discharging.)
+        * Charge status is Fully Charged only if all batteries are Fully Charged.
 
-def get_composite_status(bus):
+        returns: CompositeStatus describing the count and overall charge status of the batteries.
+        """
 
-    upower = bus.get(UPOWER_BUS_NAME)
-    device_names = upower.EnumerateDevices()
-    charge_status = ChargeStatus.Fully_Charged
+        device_names = self.upower_bus.EnumerateDevices()
+        charge_status = FULLY_CHARGED
 
-    batteries = []
-    for device_name in device_names:
-        device = bus.get(UPOWER_BUS_NAME, device_name)
-        if device.PowerSupply is True and device.Type in (2, 3):  # Type 2 = Battery, Type 3 = UPS
-            batteries.append(device)
+        batteries = []
+        for device_name in device_names:
+            device = SYSTEM_BUS.get(UPOWER_BUS_NAME, device_name)
+            if device.PowerSupply is True and device.Type in (2, 3):  # Type 2 = Battery, Type 3 = UPS
+                batteries.append(device)
 
-    if not batteries:
-        charge_status = ChargeStatus.No_Battery
+        if not batteries:
+            charge_status = NO_BATTERY
 
-    # If any battery is discharging, overall status is Discharging.
-    for battery in batteries:
-        if battery.State not in (1, 4):  # State 1 = Charging, State 4 = Fully Charged
-            charge_status = ChargeStatus.Discharging
-
-    # If the overall status is not Discharging, then if any battery is charging, overall status is Charging.
-    if charge_status is not ChargeStatus.Discharging:
         for battery in batteries:
-            if battery.State == 1:
-                charge_status = ChargeStatus.Charging
+            if battery.Status == 1:
+                charge_status = CHARGING
+            elif battery.Status == 4 and charge_status != CHARGING:
+                charge_status = FULLY_CHARGED
+            else:
+                charge_status = DISCHARGING
                 break
 
-    return CompositeStatus(len(batteries), charge_status)
+        return CompositeStatus(len(batteries), charge_status)
 
+    def _send_status_email(self, current_status, new_status):
+        """
+        Send an e-mail to the configured gpgmailer recipient when battery state changes.
 
-def send_status_email(current_status, new_status):
+        current_status: The previous battery CompositeStatus.
+        new_status: The updated battery CompositeStatus.
+        """
 
-    email = gpgmailmessage.GpgMailMessage()
-    email.set_subject("This is a hard-coded subject")
+        email = gpgmailmessage.GpgMailMessage()
+        # get subject from self.config or else leave blank for gpgmailer default.
+        if (self.config['email_subject']):
+            email.set_subject(self.config['email_subject'])
+        else:
+            email.set_subject("Batwatch Signal")
 
-    email.set_body(
-        'Yo dawg, I herd u like bats. Well, ur bat status just changed. It was {} but now it\'s {}. Check that shit.'
-        .format(current_status, new_status)
-    )
+        body = self._build_email_body(current_status, new_status)
+        email.set_body(body)
 
-    email.queue_for_sending()
+        email.queue_for_sending()
 
+    def _build_email_body(self, current_status, new_status):
+        """
+        Return the text with battery status change information to be sent in the e-mail alert.
+
+        current_status: The previous battery CompositeStatus at beginning of this loop.
+        new_status: The updated battery CompositeStatus.
+        returns: E-mail body text including previous and updated battery status details.
+        """
+
+        body_text = "Batwatch detected a change in your device's battery status:\n\n"
+
+        count_diff = new_status.battery_count - current_status.battery_count
+        if count_diff != 0:
+            if count_diff < 0:
+                body_text += 'A battery was ADDED.'
+            elif count_diff > 0:
+                body_text += 'A battery was REMOVED.'
+            body_text += ' Count of batteries is now {}, was {}.\n\n' \
+                .format(new_status.battery_count, current_status.battery_count)
+
+        if new_status.charge_status != current_status.charge_status:
+            body_text += 'The battery is now {}. Previously, it was {}.\n\n' \
+                .format(new_status.charge_status, current_status.charge_status)
+
+        return body_text
