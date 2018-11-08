@@ -1,7 +1,7 @@
 Source: batwatch
 Section: parkbench
 Priority: required
-Maintainer: eviljoel, Andrew Klapp, Brittney Scaccia
+Maintainer: eviljoel, Emily Klapp
 #Build-Depends:
 Standards-Version: 3.9.6.1
 
