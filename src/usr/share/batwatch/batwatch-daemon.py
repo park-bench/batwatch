@@ -75,13 +75,13 @@ def get_user_and_group_ids():
     except KeyError as key_error:
         # TODO: When switching to Python 3, convert to chained exception. (gpgmailer issue 15)
         print('User %s does not exist.' % PROCESS_USERNAME)
-        raise Exception('User %s does not exist.' % PROCESS_USERNAME, key_error)
+        raise key_error
     try:
         program_group = grp.getgrnam(PROCESS_GROUP_NAME)
     except KeyError as key_error:
         # TODO: When switching to Python 3, convert to chained exception. (gpgmailer issue 15)
         print('Group %s does not exist.' % PROCESS_GROUP_NAME)
-        raise Exception('Group %s does not exist.' % PROCESS_GROUP_NAME, key_error)
+        raise key_error
 
     return program_user.pw_uid, program_group.gr_gid
 
@@ -256,10 +256,9 @@ try:
     daemon_context = setup_daemon_context(
         config_helper.get_log_file_handle(), program_uid, program_gid)
 
-    logger.debug('Initializing Batwatch.')
-    batwatch = batwatch.Batwatch(config)
-
     with daemon_context:
+        logger.debug('Initializing Batwatch.')
+        batwatch = batwatch.Batwatch(config)
         batwatch.watch_the_bat()
 
 except Exception as exception:
