@@ -1,6 +1,4 @@
-#!/usr/bin/env python2
-
-# Copyright 2015-2018 Joel Allen Luellwitz and Emily Klapp
+# Copyright 2018 Joel Allen Luellwitz and Emily Frost
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,11 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""
-Handles battery change status monitoring and e-mail notifications for Batwatch.
+"""Handles battery change status monitoring and e-mail notifications for the battery
+monitor.
 """
 
-__author__ = 'Joel Luellwitz, Emily Klapp, and Brittney Scaccia'
+__author__ = 'Joel Luellwitz, Emily Frost, and Brittney Scaccia'
 __version__ = '0.8'
 
 import logging
@@ -38,9 +36,7 @@ CHARGE_STATUS_DICT = {
 
 
 class CompositeStatus(object):
-    """
-    Describes battery status information that Batwatch should monitor for changes.
-    """
+    """Stores state information for multiple batteries in an easily comparable object."""
 
     def __init__(self, battery_count, charge_status):
         self.battery_count = battery_count
@@ -57,28 +53,19 @@ class CompositeStatus(object):
 
 
 class Batwatch(object):
+    """Monitors the status of the system battery and notifies designated recipient(s) of
+    changes via gpgmailer encrypted email.
     """
-    Monitors the status of system battery and notifies designated recipient(s) of changes
-    by gpgmailer encrypted email.
-    """
-
-    __name__ = 'Batwatch'
 
     def __init__(self, config):
-        """
-        Start Batwatch with its configuration, logger, and reference to the UPower bus.
-
-        config: Object containing Batwatch configuration details.
-        """
-        self.logger = logging.getLogger(self.__name__)
+        self.logger = logging.getLogger(__name__)
         self.system_bus = SystemBus()
         self.upower_bus = SystemBus().get(UPOWER_BUS_NAME)
         self.config = config
 
     def watch_the_bat(self):
-        """
-        Continuously monitor the status of all batteries attached to the device Batwatch is running
-        on, and queue a status email to a configured recipient if anything changes.
+        """Continuously monitor the status of all batteries attached to the current system,
+        and queue a status email if any of those batteries' state changes.
         """
         self.logger.info('Watching the battery status.')
 
@@ -86,16 +73,15 @@ class Batwatch(object):
         current_status = CompositeStatus(1, FULLY_CHARGED)
 
         while True:
-            self.logger.trace('Running the main loop.')
             new_status = self._get_composite_status()
             if current_status != new_status:
-                self.logger.warn('A change in the battery status was detected. \nNEW STATUS: {} \nOLD STATUS: {}'
-                                 .format(current_status, new_status))
+                self.logger.warning('Battery state changed from %s to %s.', current_status,
+                                    new_status)
                 self._send_status_email(current_status, new_status)
                 current_status = new_status
             else:
                 self.logger.trace('No changes in battery status.')
-            time.sleep(int(self.config['delay']))
+            time.sleep(self.config['delay'])
 
     def _get_composite_status(self):
         """
@@ -140,7 +126,7 @@ class Batwatch(object):
         """
 
         email = gpgmailmessage.GpgMailMessage()
-        # get subject from self.config or else leave blank for gpgmailer default.
+        # Get subject from configuration or else leave blank for gpgmailer default.
         if (self.config['email_subject']):
             email.set_subject(self.config['email_subject'])
 
@@ -150,27 +136,28 @@ class Batwatch(object):
         email.queue_for_sending()
 
     def _build_email_body(self, current_status, new_status):
-        """
-        Return the text with battery status change information to be sent in the e-mail alert.
+        """Creates an e-mail body with the battery status change information.
 
-        current_status: The previous battery CompositeStatus at beginning of this loop.
+        current_status: The previous battery CompositeStatus.
         new_status: The updated battery CompositeStatus.
-        returns: E-mail body text including previous and updated battery status details.
+
+        Returns a string intended to be an e-mail body.
         """
 
-        body_text = "Batwatch detected a change in your device's battery status:\n\n"
+        body_text = 'Batwatch detected a change in your device\'s battery status:\n\n'
 
         count_diff = new_status.battery_count - current_status.battery_count
         if count_diff != 0:
             if count_diff < 0:
-                body_text += 'A battery was ADDED.'
+                body_text += 'Batteries were added.'
             elif count_diff > 0:
-                body_text += 'A battery was REMOVED.'
-            body_text += ' Count of batteries is now {}, was {}.\n\n' \
-                .format(new_status.battery_count, current_status.battery_count)
+                body_text += 'Batteries were removed.'
+            body_text += ' Count of batteries is now %s, was %s.\n\n' % (
+                new_status.battery_count, current_status.battery_count)
 
         if new_status.charge_status != current_status.charge_status:
-            body_text += 'The battery is now {}. Previously, it was {}.\n\n' \
-                .format(CHARGE_STATUS_DICT[new_status.charge_status], CHARGE_STATUS_DICT[current_status.charge_status])
+            body_text += 'The battery is now %s. Previously, it was %s.\n\n' % (
+                CHARGE_STATUS_DICT[new_status.charge_status],
+                CHARGE_STATUS_DICT[current_status.charge_status])
 
         return body_text

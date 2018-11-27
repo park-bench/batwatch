@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 
-# Copyright 2015-2018 Joel Allen Luellwitz and Emily Klapp
+# Copyright 2018 Joel Allen Luellwitz and Emily Frost
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
 # TODO: Eventually consider running in a chroot or jail.
 # TODO: Eventually check to see if the network/internet connection is down.
 
-__author__ = 'Joel Luellwitz, Emily Klapp, and Brittney Scaccia'
+__author__ = 'Joel Luellwitz, Emily Frost, and Brittney Scaccia'
 __version__ = '0.8'
 
 import confighelper
@@ -73,13 +73,15 @@ def get_user_and_group_ids():
     try:
         program_user = pwd.getpwnam(PROCESS_USERNAME)
     except KeyError as key_error:
-        # TODO: When switching to Python 3, convert to chained exception. (gpgmailer issue 15)
+        # TODO: When switching to Python 3, convert to chained exception.
+        #   (gpgmailer issue 15)
         print('User %s does not exist.' % PROCESS_USERNAME)
         raise key_error
     try:
         program_group = grp.getgrnam(PROCESS_GROUP_NAME)
     except KeyError as key_error:
-        # TODO: When switching to Python 3, convert to chained exception. (gpgmailer issue 15)
+        # TODO: When switching to Python 3, convert to chained exception.
+        #   (gpgmailer issue 15)
         print('Group %s does not exist.' % PROCESS_GROUP_NAME)
         raise key_error
 
@@ -111,8 +113,8 @@ def read_configuration_and_create_logger(program_uid, program_gid):
 
     # Create logging directory.  drwxr-x--- batwatch batwatch
     log_mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP
-    # TODO: Look into defaulting the logging to the console until the program gets more (gpgmailer issue 18)
-    #   bootstrapped.
+    # TODO: Look into defaulting the logging to the console until the program gets more
+    #   bootstrapped. (gpgmailer issue 18)
     print('Creating logging directory %s.' % LOG_DIR)
     if not os.path.isdir(LOG_DIR):
         # Will throw exception if file cannot be created.
@@ -127,9 +129,9 @@ def read_configuration_and_create_logger(program_uid, program_gid):
     os.seteuid(os.getuid())
     os.setegid(os.getgid())
 
-    logger = logging.getLogger('%s-daemon' % PROGRAM_NAME)
+    logger = logging.getLogger(__name__)
 
-    logger.info('Verifying non-logging config')
+    logger.info('Verifying non-logging configuration.')
     config['delay'] = config_helper.verify_number_exists(config_parser, 'delay')
     config['email_subject'] = config_helper.verify_string_exists(config_parser, 'email_subject')
 
@@ -224,7 +226,7 @@ def setup_daemon_context(log_file_handle, program_uid, program_gid):
 
     daemon_context.files_preserve = [log_file_handle]
 
-    # Set the UID and PID to 'batwatch' user and group.
+    # Set the UID and GID to 'batwatch' user and group.
     daemon_context.uid = program_uid
     daemon_context.gid = program_gid
 
@@ -257,7 +259,7 @@ try:
         config_helper.get_log_file_handle(), program_uid, program_gid)
 
     with daemon_context:
-        logger.debug('Initializing Batwatch.')
+        logger.info('Initializing Batwatch.')
         batwatch = batwatch.Batwatch(config)
         batwatch.watch_the_bat()
 
