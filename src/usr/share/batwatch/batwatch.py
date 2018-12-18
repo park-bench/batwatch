@@ -17,13 +17,14 @@
 monitor.
 """
 
+__all__ = ['BatWatch', 'CompositeStatus']
 __author__ = 'Joel Luellwitz, Emily Frost, and Brittney Scaccia'
 __version__ = '0.8'
 
 import logging
 import time
-import gpgmailmessage
 from pydbus import SystemBus
+import gpgmailmessage
 
 UPOWER_BUS_NAME = 'org.freedesktop.UPower'
 FULLY_CHARGED, CHARGING, DISCHARGING, NO_BATTERY = range(4)
@@ -52,7 +53,7 @@ class CompositeStatus(object):
         return not self.__eq__(other)
 
 
-class Batwatch(object):
+class BatWatch(object):
     """Monitors the status of the system battery and notifies designated recipient(s) of
     changes via gpgmailer encrypted email.
     """
@@ -63,7 +64,7 @@ class Batwatch(object):
         self.upower_bus = SystemBus().get(UPOWER_BUS_NAME)
         self.config = config
 
-    def watch_the_bat(self):
+    def start_monitoring(self):
         """Continuously monitor the status of all batteries attached to the current system,
         and queue a status email if any of those batteries' state changes.
         """
@@ -84,8 +85,7 @@ class Batwatch(object):
             time.sleep(self.config['delay'])
 
     def _get_composite_status(self):
-        """
-        Get status information about batteries connected to the device Batwatch is running on,
+        """Get status information about batteries connected to the device Batwatch is running on,
          including the charge status, such that:
         * If any battery is discharging, charge status is Discharging.
           (Assume any status other than Charging or Fully Charged is equivalent to Discharging.)
@@ -100,7 +100,12 @@ class Batwatch(object):
         batteries = []
         for device_name in device_names:
             device = self.system_bus.get(UPOWER_BUS_NAME, device_name)
-            if device.PowerSupply is True and device.Type in (2, 3):  # Type 2 = Battery, Type 3 = UPS
+            # We only care about device types 2 and 3, which are batteries and UPSes,
+            #   respectively. The full list can be found here:
+            #   https://upower.freedesktop.org/docs/Device.html#Device:Type
+
+            # A device is considered a power supply if it powers the whole system.
+            if device.PowerSupply is True and device.Type in (2, 3):
                 batteries.append(device)
 
         if not batteries:
@@ -118,8 +123,7 @@ class Batwatch(object):
         return CompositeStatus(len(batteries), charge_status)
 
     def _send_status_email(self, current_status, new_status):
-        """
-        Send an e-mail to the configured gpgmailer recipient when battery state changes.
+        """Send an e-mail to the configured gpgmailer recipient when battery state changes.
 
         current_status: The previous battery CompositeStatus.
         new_status: The updated battery CompositeStatus.

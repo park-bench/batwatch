@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/python2
 
 # Copyright 2018 Joel Allen Luellwitz and Emily Frost
 #
@@ -18,32 +18,24 @@
 """Daemonize the Batwatch battery monitor."""
 
 # TODO: Eventually consider running in a chroot or jail.
-# TODO: Eventually check to see if the network/internet connection is down.
 
 __author__ = 'Joel Luellwitz, Emily Frost, and Brittney Scaccia'
 __version__ = '0.8'
 
-import confighelper
-import ConfigParser
-import daemon
 import grp
 import logging
 import os
-
-# TODO: Remove try/except when we drop support for Ubuntu 14.04 LTS.
-try:
-    from lockfile import pidlockfile
-except ImportError:
-    from daemon import pidlockfile
 import pwd
-import random
 import signal
 import stat
 import sys
-import time
 import traceback
+import ConfigParser
+import daemon
+from lockfile import pidlockfile
 from pydbus import SystemBus
 import batwatch
+import confighelper
 
 # Constants
 PROGRAM_NAME = 'batwatch'
@@ -53,7 +45,6 @@ PROGRAM_PID_DIRS = PROGRAM_NAME
 PID_FILE = '%s.pid' % PROGRAM_NAME
 LOG_DIR = os.path.join('/var/log', PROGRAM_NAME)
 LOG_FILE = '%s.log' % PROGRAM_NAME
-SYSTEM_DATA_DIR = '/var/cache'
 PROCESS_USERNAME = PROGRAM_NAME
 PROCESS_GROUP_NAME = PROGRAM_NAME
 PROGRAM_UMASK = 0o027  # -rw-r----- and drwxr-x---
@@ -198,9 +189,6 @@ def sig_term_handler(signal, stack_frame):
     stack_frame: Represents the stack frame.
     """
     logger.info('SIGTERM received. Quitting.')
-    # if tor_process is not None:
-    #     logger.info('Stopping tor.')
-    #     tor_process.kill()
     sys.exit(0)
 
 
@@ -260,8 +248,8 @@ try:
 
     with daemon_context:
         logger.info('Initializing Batwatch.')
-        batwatch = batwatch.Batwatch(config)
-        batwatch.watch_the_bat()
+        batwatch = batwatch.BatWatch(config)
+        batwatch.start_monitoring()
 
 except Exception as exception:
     logger.critical('Fatal %s: %s\n%s' % (type(exception).__name__, str(exception),
