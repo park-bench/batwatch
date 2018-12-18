@@ -27,6 +27,7 @@ from pydbus import SystemBus
 import gpgmailmessage
 
 UPOWER_BUS_NAME = 'org.freedesktop.UPower'
+# TODO: Rework this to be less redundant.
 FULLY_CHARGED, CHARGING, DISCHARGING, NO_BATTERY = range(4)
 CHARGE_STATUS_DICT = {
     0: 'Fully Charged',
@@ -68,30 +69,36 @@ class BatWatch(object):
         """Continuously monitor the status of all batteries attached to the current system,
         and queue a status email if any of those batteries' state changes.
         """
-        self.logger.info('Watching the battery status.')
+        self.logger.info('Monitoring the system\'s power state.')
 
         # Arbitrarily initialize the current status and detect any deviations.
-        current_status = CompositeStatus(1, FULLY_CHARGED)
+        prior_status = CompositeStatus(1, FULLY_CHARGED)
+
+        # TODO: Don't arbitrarily initialize a status. Get the actual status and send an
+        #   email if the state is discharging.
 
         while True:
-            new_status = self._get_composite_status()
-            if current_status != new_status:
-                self.logger.warning('Battery state changed from %s to %s.', current_status,
-                                    new_status)
-                self._send_status_email(current_status, new_status)
-                current_status = new_status
+            current_status = self._get_composite_status()
+            if prior_status != current_status:
+                self.logger.warning('Battery state changed from %s to %s.', prior_status,
+                                    current_status)
+                self._send_status_email(prior_status, current_status)
+                prior_status = current_status
             else:
                 self.logger.trace('No changes in battery status.')
             time.sleep(self.config['delay'])
 
     def _get_composite_status(self):
-        """Get status information about batteries connected to the device Batwatch is running on,
-         including the charge status, such that:
-        * If any battery is discharging, charge status is Discharging.
-          (Assume any status other than Charging or Fully Charged is equivalent to Discharging.)
-        * Charge status is Fully Charged only if all batteries are Fully Charged.
+        # TODO: Move the composite status state description to the readme.
+        """Get status information about batteries connected to the device Batwatch is running
+            on, including the charge status, such that:
+            * If any battery is discharging, charge status is Discharging.
+              (Assume any status other than Charging or Fully Charged is equivalent to
+               Discharging.)
+            * Charge status is Fully Charged only if all batteries are Fully Charged.
 
-        returns: CompositeStatus describing the count and overall charge status of the batteries.
+        returns: CompositeStatus describing the count and overall charge status of the
+            batteries.
         """
 
         device_names = self.upower_bus.EnumerateDevices()
@@ -131,7 +138,7 @@ class BatWatch(object):
 
         email = gpgmailmessage.GpgMailMessage()
         # Get subject from configuration or else leave blank for gpgmailer default.
-        if (self.config['email_subject']):
+        if self.config['email_subject']:
             email.set_subject(self.config['email_subject'])
 
         body = self._build_email_body(current_status, new_status)
