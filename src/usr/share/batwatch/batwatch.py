@@ -156,11 +156,11 @@ class BatWatch(object):
 
         return CompositeStatus(len(batteries), charge_status)
 
-    def _send_status_email(self, current_status, new_status):
+    def _send_status_email(self, prior_status, current_status):
         """Send an e-mail to the configured gpgmailer recipient when battery state changes.
 
-        current_status: The previous battery CompositeStatus.
-        new_status: The updated battery CompositeStatus.
+        prior_status: The previous battery CompositeStatus.
+        current_status: The updated battery CompositeStatus.
         """
 
         email = gpgmailmessage.GpgMailMessage()
@@ -168,34 +168,34 @@ class BatWatch(object):
         if self.config['email_subject']:
             email.set_subject(self.config['email_subject'])
 
-        body = self._build_email_body(current_status, new_status)
+        body = self._build_email_body(prior_status, current_status)
         email.set_body(body)
 
         email.queue_for_sending()
 
-    def _build_email_body(self, current_status, new_status):
+    def _build_email_body(self, prior_status, current_status):
         """Creates an e-mail body with the battery status change information.
 
-        current_status: The previous battery CompositeStatus.
-        new_status: The updated battery CompositeStatus.
+        prior_status: The previous battery CompositeStatus.
+        current_status: The updated battery CompositeStatus.
 
         Returns a string intended to be an e-mail body.
         """
 
         body_text = 'Batwatch detected a change in your device\'s battery status:\n\n'
 
-        count_diff = new_status.battery_count - current_status.battery_count
+        count_diff = current_status.battery_count - prior_status.battery_count
         if count_diff != 0:
             if count_diff < 0:
                 body_text += 'Batteries were added.'
             elif count_diff > 0:
                 body_text += 'Batteries were removed.'
             body_text += ' Count of batteries is now %s, was %s.\n\n' % (
-                new_status.battery_count, current_status.battery_count)
+                current_status.battery_count, prior_status.battery_count)
 
-        if new_status.charge_status != current_status.charge_status:
+        if current_status.charge_status != prior_status.charge_status:
             body_text += 'The battery is now %s. Previously, it was %s.\n\n' % (
-                CHARGE_STATUS_DICT[new_status.charge_status],
-                CHARGE_STATUS_DICT[current_status.charge_status])
+                CHARGE_STATUS_DICT[current_status.charge_status],
+                CHARGE_STATUS_DICT[prior_status.charge_status])
 
         return body_text
