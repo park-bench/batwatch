@@ -27,7 +27,7 @@ from pydbus import SystemBus
 import gpgmailmessage
 
 UPOWER_BUS_NAME = 'org.freedesktop.UPower'
-# TODO: Rework this to be less redundant.
+# TODO: Rework this to be less redundant. Consider subclassing enum.IntEnum.
 FULLY_CHARGED, CHARGING, DISCHARGING, NO_BATTERY = range(4)
 CHARGE_STATUS_DICT = {
     0: 'Fully Charged',
@@ -39,7 +39,6 @@ CHARGE_STATUS_DICT = {
 
 class CompositeStatus(object):
     """Stores state information for multiple batteries in an easily comparable object."""
-    # TODO: Override __gt__ and __lt__ to determine "favorable" changes.
 
     def __init__(self, battery_count, charge_status):
         # TODO: Add inline comments explaining what these values are and how they work.
@@ -53,7 +52,24 @@ class CompositeStatus(object):
         return self.__dict__ == other.__dict__
 
     def __ne__(self, other):
-        return not self.__eq__(other)
+        return not self == other
+
+    def __gt__(self, other):
+        is_greater_than = False
+        if self.battery_count > other.battery_count:
+            is_greater_than = True
+
+        elif self.battery_count == other.battery_count:
+            if self.charge_status > other.charge_status:
+                is_greater_than = True
+
+        return is_greater_than
+
+    def __lt__(self, other):
+        if self != other:
+            return not self > other
+
+        return False
 
 
 class BatWatch(object):
@@ -85,8 +101,13 @@ class BatWatch(object):
         while True:
             current_status = self._get_composite_status()
             if prior_status != current_status:
-                self.logger.warning('Battery state changed from %s to %s.', prior_status,
-                                    current_status)
+                if prior_status < current_status:
+                    self.logger.warning('Battery state changed from %s to %s.',
+                                        prior_status, current_status)
+                else:
+                    self.logger.info('Battery state changed from %s to %s.', prior_status,
+                                     current_status)
+
                 self._send_status_email(prior_status, current_status)
                 prior_status = current_status
             else:
@@ -94,7 +115,6 @@ class BatWatch(object):
             time.sleep(self.config['delay'])
 
     def _get_composite_status(self):
-        # TODO: Move the composite status state description to the readme.
         """Get status information about batteries connected to the device Batwatch is running
             on, including the charge status, such that:
             * If any battery is discharging, charge status is Discharging.
@@ -107,7 +127,6 @@ class BatWatch(object):
         """
 
         device_names = self.upower_bus.EnumerateDevices()
-        charge_status = FULLY_CHARGED
 
         batteries = []
         for device_name in device_names:
@@ -119,6 +138,8 @@ class BatWatch(object):
             # A device is considered a power supply if it powers the whole system.
             if device.PowerSupply is True and device.Type in (2, 3):
                 batteries.append(device)
+
+        charge_status = FULLY_CHARGED
 
         if not batteries:
             charge_status = NO_BATTERY
