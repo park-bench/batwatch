@@ -39,8 +39,10 @@ CHARGE_STATUS_DICT = {
 
 class CompositeStatus(object):
     """Stores state information for multiple batteries in an easily comparable object."""
+    # TODO: Override __gt__ and __lt__ to determine "favorable" changes.
 
     def __init__(self, battery_count, charge_status):
+        # TODO: Add inline comments explaining what these values are and how they work.
         self.battery_count = battery_count
         self.charge_status = charge_status
 
@@ -76,6 +78,9 @@ class BatWatch(object):
 
         # TODO: Don't arbitrarily initialize a status. Get the actual status and send an
         #   email if the state is discharging.
+
+        # TODO: Check for favorable state changes and log them differently from
+        #   unfavorable ones.
 
         while True:
             current_status = self._get_composite_status()
@@ -118,14 +123,15 @@ class BatWatch(object):
         if not batteries:
             charge_status = NO_BATTERY
 
-        for battery in batteries:
-            if battery.State == 1:
-                charge_status = CHARGING
-            elif battery.State == 4 and charge_status != CHARGING:
-                charge_status = FULLY_CHARGED
-            else:
-                charge_status = DISCHARGING
-                break
+        else:
+            for battery in batteries:
+                if battery.State == 1:
+                    charge_status = CHARGING
+                elif battery.State == 4 and charge_status != CHARGING:
+                    charge_status = FULLY_CHARGED
+                else:
+                    charge_status = DISCHARGING
+                    break
 
         return CompositeStatus(len(batteries), charge_status)
 
