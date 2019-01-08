@@ -22,6 +22,7 @@ __author__ = 'Joel Luellwitz, Emily Frost, and Brittney Scaccia'
 __version__ = '0.8'
 
 import logging
+import random
 import time
 from pydbus import SystemBus
 import gpgmailmessage
@@ -112,7 +113,8 @@ class BatWatch(object):
             else:
                 self.logger.trace('No changes in battery status.')
 
-            time.sleep(self.config['delay'])
+            delay = random.uniform(0, self.config['average_delay'])
+            time.sleep(delay)
 
     def _get_composite_status(self):
         """Get status information about batteries connected to the device Batwatch is running
