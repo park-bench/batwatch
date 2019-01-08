@@ -107,10 +107,11 @@ class BatWatch(object):
                     self.logger.info('Battery state changed from %s to %s.', prior_status,
                                      current_status)
 
-                self._send_status_email(prior_status, current_status)
+                self._send_email(self._build_email_body(prior_status, current_status))
                 prior_status = current_status
             else:
                 self.logger.trace('No changes in battery status.')
+
             time.sleep(self.config['delay'])
 
     def _get_composite_status(self):
@@ -155,23 +156,6 @@ class BatWatch(object):
 
         return CompositeStatus(len(batteries), charge_status)
 
-    def _send_status_email(self, prior_status, current_status):
-        """Send an e-mail to the configured gpgmailer recipient when battery state changes.
-
-        prior_status: The previous battery CompositeStatus.
-        current_status: The updated battery CompositeStatus.
-        """
-
-        email = gpgmailmessage.GpgMailMessage()
-        # Get subject from configuration or else leave blank for gpgmailer default.
-        if self.config['email_subject']:
-            email.set_subject(self.config['email_subject'])
-
-        body = self._build_email_body(prior_status, current_status)
-        email.set_body(body)
-
-        email.queue_for_sending()
-
     def _build_email_body(self, prior_status, current_status):
         """Creates an e-mail body with the battery status change information.
 
@@ -189,6 +173,7 @@ class BatWatch(object):
                 body_text += 'Batteries were added.'
             elif count_diff > 0:
                 body_text += 'Batteries were removed.'
+
             body_text += ' Count of batteries is now %s, was %s.\n\n' % (
                 current_status.battery_count, prior_status.battery_count)
 
