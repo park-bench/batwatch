@@ -90,13 +90,12 @@ class BatWatch(object):
         self.logger.info('Monitoring the system\'s power state.')
 
         # Arbitrarily initialize the current status and detect any deviations.
-        prior_status = CompositeStatus(1, FULLY_CHARGED)
+        prior_status = self._get_composite_status()
 
-        # TODO: Don't arbitrarily initialize a status. Get the actual status and send an
-        #   email if the state is discharging.
-
-        # TODO: Check for favorable state changes and log them differently from
-        #   unfavorable ones.
+        if prior_status.charge_status == DISCHARGING:
+            message = 'This system was discharging when Batwatch was initialized.'
+            self.logger.warning(message)
+            self._send_email(message)
 
         while True:
             current_status = self._get_composite_status()
@@ -131,7 +130,7 @@ class BatWatch(object):
         batteries = []
         for device_name in device_names:
             device = self.system_bus.get(UPOWER_BUS_NAME, device_name)
-            # We only care about device types 2 and 3, which are batteries and UPSes,
+            # We only care about device types 2 and 3, which are batteries and UPS units,
             #   respectively. The full list can be found here:
             #   https://upower.freedesktop.org/docs/Device.html#Device:Type
 
@@ -199,3 +198,18 @@ class BatWatch(object):
                 CHARGE_STATUS_DICT[prior_status.charge_status])
 
         return body_text
+
+    def _send_email(self, body_text):
+        """ Send an email.
+
+        body_text: The text for the email to be sent.
+        """
+
+        email = gpgmailmessage.GpgMailMessage()
+
+        # Get subject from configuration or else leave blank for gpgmailer default.
+        if self.config['email_subject']:
+            email.set_subject(self.config['email_subject'])
+
+        email.set_body(body_text)
+        email.queue_for_sending()
