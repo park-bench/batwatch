@@ -28,23 +28,16 @@ from pydbus import SystemBus
 import gpgmailmessage
 
 UPOWER_BUS_NAME = 'org.freedesktop.UPower'
-# TODO: Rework this to be less redundant. Consider subclassing enum.IntEnum.
-FULLY_CHARGED, CHARGING, DISCHARGING, NO_BATTERY = range(4)
-CHARGE_STATUS_DICT = {
-    0: 'Fully Charged',
-    1: 'Charging',
-    2: 'Discharging',
-    3: 'No Battery'
-}
+NO_BATTERY, DISCHARGING, CHARGING, FULLY_CHARGED = range(4)
+CHARGE_STATUS_LIST = ['No Battery', 'Discharging', 'Charging', 'Fully Charged']
 
 
 class CompositeStatus(object):
     """Stores state information for multiple batteries in an easily comparable object."""
 
     def __init__(self, battery_count, charge_status):
-        # TODO: Add inline comments explaining what these values are and how they work.
-        self.battery_count = battery_count
-        self.charge_status = charge_status
+        self.battery_count = battery_count # The number of batteries in the system.
+        self.charge_status = charge_status # The overall charging status of the system.
 
     def __str__(self):
         return str(self.__dict__)
@@ -181,8 +174,8 @@ class BatWatch(object):
 
         if current_status.charge_status != prior_status.charge_status:
             body_text += 'The battery is now %s. Previously, it was %s.\n\n' % (
-                CHARGE_STATUS_DICT[current_status.charge_status],
-                CHARGE_STATUS_DICT[prior_status.charge_status])
+                CHARGE_STATUS_LIST[current_status.charge_status],
+                CHARGE_STATUS_LIST[prior_status.charge_status])
 
         return body_text
 
