@@ -54,30 +54,26 @@ class CompositeStatus(object):
         self.charge_status = charge_status
 
     def __str__(self):
-        return str(self.__dict__)
+        english_representation = '0 batteries'
+
+        if self.charge_status != NO_BATTERY:
+
+            battery_word = 'batteries'
+            if self.battery_count == 1:
+                battery_word = 'battery'
+
+            english_status = CHARGE_STATUS_LIST[self.battery_count]
+            english_representation = '%s %s %s' % (
+                self.battery_count, battery_word, english_status)
+
+        return english_representation
+
 
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
 
     def __ne__(self, other):
         return not self == other
-
-    def __gt__(self, other):
-        is_greater_than = False
-        if self.battery_count > other.battery_count:
-            is_greater_than = True
-
-        elif self.battery_count == other.battery_count:
-            if self.charge_status > other.charge_status:
-                is_greater_than = True
-
-        return is_greater_than
-
-    def __lt__(self, other):
-        if self != other:
-            return not self > other
-
-        return False
 
 
 class BatWatch(object):
@@ -112,18 +108,23 @@ class BatWatch(object):
         while True:
             current_status = self._get_composite_status()
             if prior_status != current_status:
-                if prior_status < current_status:
+                if prior_status.battery_count > current_status.battery_count \
+                    or prior_status.charge_status > current_status.charge_status:
                     self.logger.warning('Battery state changed from %s to %s.',
                                         prior_status, current_status)
                 else:
                     self.logger.info('Battery state changed from %s to %s.', prior_status,
                                      current_status)
 
-                self._send_email(self._build_email_body(prior_status, current_status))
+                email_text = "Batwatch detected a change in your device's battery status:" \
+                    "\n\nThe previous status was %s. The new status is %s." % (
+                        prior_status, current_status)
+                self._send_email(email_text)
                 prior_status = current_status
             else:
                 self.logger.trace('No changes in battery status.')
 
+            # Delay for a random amount of time to make BatWatch harder to fingerprint.
             delay = random.uniform(0, self.config['average_delay'])
             time.sleep(delay)
 
@@ -163,33 +164,6 @@ class BatWatch(object):
                     break
 
         return CompositeStatus(len(batteries), charge_status)
-
-    def _build_email_body(self, prior_status, current_status):
-        """Creates an e-mail body with the battery status change information.
-
-        prior_status: The previous battery CompositeStatus.
-        current_status: The updated battery CompositeStatus.
-
-        Returns a string intended to be an e-mail body.
-        """
-
-        body_text = "Batwatch detected a change in your device's battery status:\n\n"
-
-        if current_status.battery_count != prior_status.battery_count:
-            if current_status.battery_count < prior_status.battery_count:
-                body_text += 'Batteries were removed.'
-            elif current_status.battery_count > prior_status.battery_count:
-                body_text += 'Batteries were added.'
-
-            body_text += ' Count of batteries is now %s, was %s.\n\n' % (
-                current_status.battery_count, prior_status.battery_count)
-
-        if current_status.charge_status != prior_status.charge_status:
-            body_text += 'The batteries are now %s. Previously, they were %s.\n\n' % (
-                CHARGE_STATUS_LIST[current_status.charge_status],
-                CHARGE_STATUS_LIST[prior_status.charge_status])
-
-        return body_text
 
     def _send_email(self, body_text):
         """Sends an e-mail.
