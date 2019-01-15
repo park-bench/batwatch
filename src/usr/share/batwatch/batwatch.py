@@ -17,7 +17,7 @@
 monitor.
 """
 
-__all__ = ['BatWatch', 'CompositeStatus']
+__all__ = ['BatWatch']
 __author__ = 'Joel Luellwitz, Emily Frost, and Brittney Scaccia'
 __version__ = '0.8'
 
@@ -28,8 +28,18 @@ from pydbus import SystemBus
 import gpgmailmessage
 
 UPOWER_BUS_NAME = 'org.freedesktop.UPower'
+
+# These constants are integers instead of strings because they need to be compared to
+#   determine "favorable" changes.
 NO_BATTERY, DISCHARGING, CHARGING, FULLY_CHARGED = range(4)
-CHARGE_STATUS_LIST = ['No Battery', 'Discharging', 'Charging', 'Fully Charged']
+
+# This list is built with insert instead of statically so that we only need to maintain
+#   the order in one place.
+CHARGE_STATUS_LIST = []
+CHARGE_STATUS_LIST.insert(NO_BATTERY, "No Battery")
+CHARGE_STATUS_LIST.insert(DISCHARGING, "Discharging")
+CHARGE_STATUS_LIST.insert(CHARGING, "Charging")
+CHARGE_STATUS_LIST.insert(FULLY_CHARGED, "Fully Charged")
 
 
 class CompositeStatus(object):
@@ -89,7 +99,7 @@ class BatWatch(object):
         """Continuously monitor the status of all batteries attached to the current system,
         and queue a status e-mail if any of those batteries' state changes.
         """
-        self.logger.info('Monitoring the system\'s power state.')
+        self.logger.info("Monitoring the system's power state.")
 
         # Arbitrarily initialize the current status and detect any deviations.
         prior_status = self._get_composite_status()
@@ -131,12 +141,10 @@ class BatWatch(object):
         batteries = []
         for device_name in device_names:
             device = self.system_bus.get(UPOWER_BUS_NAME, device_name)
-            # A device is considered a power supply if it powers the whole system. We only
-            #   care about device types 2 and 3, which are batteries and UPS units,
-            #   respectively. The full list can be found here:
-            #   https://upower.freedesktop.org/docs/Device.html#Device:Type
+            # A device is considered a power supply if it powers the whole system.
+            #   https://upower.freedesktop.org/docs/Device.html#Device:PowerSupply
 
-            if device.PowerSupply is True and device.Type in (2, 3):
+            if device.PowerSupply:
                 batteries.append(device)
 
         charge_status = FULLY_CHARGED
@@ -148,8 +156,8 @@ class BatWatch(object):
             for battery in batteries:
                 if battery.State == 1:
                     charge_status = CHARGING
-                elif battery.State == 4 and charge_status != CHARGING:
-                    charge_status = FULLY_CHARGED
+                elif battery.State == 4:
+                    pass
                 else:
                     charge_status = DISCHARGING
                     break
@@ -165,20 +173,19 @@ class BatWatch(object):
         Returns a string intended to be an e-mail body.
         """
 
-        body_text = 'Batwatch detected a change in your device\'s battery status:\n\n'
+        body_text = "Batwatch detected a change in your device's battery status:\n\n"
 
-        count_diff = current_status.battery_count - prior_status.battery_count
-        if count_diff != 0:
-            if count_diff < 0:
-                body_text += 'Batteries were added.'
-            elif count_diff > 0:
+        if current_status.battery_count != prior_status.battery_count:
+            if current_status.battery_count < prior_status.battery_count:
                 body_text += 'Batteries were removed.'
+            elif current_status.battery_count > prior_status.battery_count:
+                body_text += 'Batteries were added.'
 
             body_text += ' Count of batteries is now %s, was %s.\n\n' % (
                 current_status.battery_count, prior_status.battery_count)
 
         if current_status.charge_status != prior_status.charge_status:
-            body_text += 'The battery is now %s. Previously, it was %s.\n\n' % (
+            body_text += 'The batteries are now %s. Previously, they were %s.\n\n' % (
                 CHARGE_STATUS_LIST[current_status.charge_status],
                 CHARGE_STATUS_LIST[prior_status.charge_status])
 

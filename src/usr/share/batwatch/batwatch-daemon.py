@@ -123,11 +123,11 @@ def read_configuration_and_create_logger(program_uid, program_gid):
     logger = logging.getLogger(__name__)
 
     logger.info('Verifying non-logging configuration.')
-    config['average_delay'] = config_helper.verify_number_within_range(config_parser,
-                                                                       'average_delay',
-                                                                       lower_bound=0)
-    config['email_subject'] = config_helper.verify_string_exists(config_parser,
-                                                                 'email_subject')
+    config['average_delay'] = config_helper.verify_number_within_range(
+        config_parser, 'average_delay', lower_bound=0)
+
+    config['email_subject'] = config_helper.get_string_exists(
+        config_parser, 'email_subject')
 
     return config, config_helper, logger
 
