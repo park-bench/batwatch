@@ -3,19 +3,20 @@
 _batwatch_ monitors a system's batteries and UPS units for state changes and sends
 notifications via _gpgmailer_.
 
-Also depends on our _confighelper_ library which can be found at
-https://github.com/park-bench/confighelper
-
-batwatch is licensed under the GNU GPLv3. All source code commits prior to the public
-release are also retroactively licensed under the GNU GPLv3.
-
 Bug fixes are welcome!
 
 ## System Power States
 
 _batwatch_ looks at the number of batteries installed on a system and each of those
-batteries' charge levels to determine the system's state. If any single battery is
-discharging, the entire system is considered to be discharging.
+batteries' charge levels to determine the system's overall state to be one of the following.
+
+* Fully Charged: All batteries are fully charged and not discharging.
+* Charging: All batteries are either fully charged or charging.
+* Discharging: At least one battery is discharging.
+* No Battery: No batteries have been detected.
+
+A notification e-mail will be sent when the number of batteries installed changes or the
+overall charge state changes.
 
 ## Prerequisites
 
@@ -25,14 +26,16 @@ The only current method of installation for our software is building and install
 
 *    You are already familiar with using a Linux terminal.
 *    You are already somewhat familiar with using debuild.
-*    `build-essential` is installed.
+*    `debhelper` is installed.
 *    `devscripts` is installed.
 
 ## Parkbench Dependencies
 
-_batwatch_ depends on one other piece of the Parkbench project, which must be installed first:
+_batwatch_ depends two other packages in the Parkbench project, which must be installed
+first:
 
 * [_confighelper_](https://github.com/park-bench/confighelper)
+* [_gpgmailer_](https://github.com/park-bench/gpgmailer)
 
 ## Steps to Build and Install
 
@@ -43,8 +46,8 @@ _batwatch_ depends on one other piece of the Parkbench project, which must be in
 
 ## Post-Install configuration
 
-There is a configuration file at `/etc/batwatch/batwatch.conf`, but the daemon will work if
-this file is not changed.
+There is a configuration file at `/etc/batwatch/batwatch.conf.example` that needs to be
+copied to `/etc/batwatch/batwatch.conf`. Changes are not required for the daemon to start.
 
 ## Updates
 

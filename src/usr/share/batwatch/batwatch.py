@@ -1,4 +1,4 @@
-# Copyright 2018 Joel Allen Luellwitz and Emily Frost
+# Copyright 2018-2019 Joel Allen Luellwitz and Emily Frost
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -34,10 +34,14 @@ CHARGE_STATUS_LIST = ['No Battery', 'Discharging', 'Charging', 'Fully Charged']
 
 class CompositeStatus(object):
     """Stores state information for multiple batteries in an easily comparable object."""
-
     def __init__(self, battery_count, charge_status):
-        self.battery_count = battery_count # The number of batteries in the system.
-        self.charge_status = charge_status # The overall charging status of the system.
+        """Constructor.
+
+        battery_count: The number of batteries in the system.
+        charge_status: The overall charging status of the system.
+        """
+        self.battery_count = battery_count
+        self.charge_status = charge_status
 
     def __str__(self):
         return str(self.__dict__)
@@ -68,10 +72,14 @@ class CompositeStatus(object):
 
 class BatWatch(object):
     """Monitors the status of the system battery and notifies designated recipient(s) of
-    changes via gpgmailer encrypted email.
+    changes via gpgmailer encrypted e-mail.
     """
 
     def __init__(self, config):
+        """Constructor.
+
+        config: Dictionary containing BatWatch configuration details.
+        """
         self.logger = logging.getLogger(__name__)
         self.system_bus = SystemBus()
         self.upower_bus = SystemBus().get(UPOWER_BUS_NAME)
@@ -79,7 +87,7 @@ class BatWatch(object):
 
     def start_monitoring(self):
         """Continuously monitor the status of all batteries attached to the current system,
-        and queue a status email if any of those batteries' state changes.
+        and queue a status e-mail if any of those batteries' state changes.
         """
         self.logger.info('Monitoring the system\'s power state.')
 
@@ -111,11 +119,8 @@ class BatWatch(object):
 
     def _get_composite_status(self):
         """Get status information about batteries connected to the device Batwatch is running
-            on, including the charge status, such that:
-            * If any battery is discharging, charge status is Discharging.
-              (Assume any status other than Charging or Fully Charged is equivalent to
-               Discharging.)
-            * Charge status is Fully Charged only if all batteries are Fully Charged.
+        on, including the charge status. For descriptions of the charge statuses, refer to
+        the included README.
 
         returns: CompositeStatus describing the count and overall charge status of the
             batteries.
@@ -126,11 +131,11 @@ class BatWatch(object):
         batteries = []
         for device_name in device_names:
             device = self.system_bus.get(UPOWER_BUS_NAME, device_name)
-            # We only care about device types 2 and 3, which are batteries and UPS units,
+            # A device is considered a power supply if it powers the whole system. We only
+            #   care about device types 2 and 3, which are batteries and UPS units,
             #   respectively. The full list can be found here:
             #   https://upower.freedesktop.org/docs/Device.html#Device:Type
 
-            # A device is considered a power supply if it powers the whole system.
             if device.PowerSupply is True and device.Type in (2, 3):
                 batteries.append(device)
 
@@ -180,9 +185,9 @@ class BatWatch(object):
         return body_text
 
     def _send_email(self, body_text):
-        """ Send an email.
+        """Sends an e-mail.
 
-        body_text: The text for the email to be sent.
+        body_text: The text for the e-mail to be sent.
         """
 
         email = gpgmailmessage.GpgMailMessage()

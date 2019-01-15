@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 
-# Copyright 2018 Joel Allen Luellwitz and Emily Frost
+# Copyright 2018-2019 Joel Allen Luellwitz and Emily Frost
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 
 """Daemonize the Batwatch battery monitor."""
 
-# TODO: Eventually consider running in a chroot or jail.
+# TODO: Eventually consider running in a chroot or jail. (gpgmailer issue 17)
 
 __author__ = 'Joel Luellwitz, Emily Frost, and Brittney Scaccia'
 __version__ = '0.8'
@@ -250,7 +250,7 @@ try:
         config_helper.get_log_file_handle(), program_uid, program_gid)
 
     with daemon_context:
-        logger.info('Initializing Batwatch.')
+        logger.info('Initializing BatWatch.')
         batwatch = batwatch.BatWatch(config)
         batwatch.start_monitoring()
 
