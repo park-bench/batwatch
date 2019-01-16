@@ -117,8 +117,6 @@ def read_configuration_and_create_logger(program_uid, program_gid):
     os.setegid(program_gid)
     os.seteuid(program_uid)
     config_helper.configure_logger(os.path.join(LOG_DIR, LOG_FILE), config['log_level'])
-    os.seteuid(os.getuid())
-    os.setegid(os.getgid())
 
     logger = logging.getLogger(__name__)
 
