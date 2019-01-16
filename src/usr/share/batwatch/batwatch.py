@@ -28,6 +28,8 @@ from pydbus import SystemBus
 import gpgmailmessage
 
 UPOWER_BUS_NAME = 'org.freedesktop.UPower'
+UPOWER_DEVICE_STATE_CHARGING = 1
+UPOWER_DEVICE_STATE_FULLY_CHARGED = 4
 
 # These constants are integers instead of strings because they need to be compared to
 #   determine "favorable" changes.
@@ -68,7 +70,6 @@ class CompositeStatus(object):
 
         return english_representation
 
-
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
 
@@ -100,10 +101,19 @@ class BatWatch(object):
         # Arbitrarily initialize the current status and detect any deviations.
         prior_status = self._get_composite_status()
 
+        initialization_email = []
         if prior_status.charge_status == DISCHARGING:
             message = 'This system was discharging when Batwatch was initialized.'
             self.logger.warning(message)
-            self._send_email(message)
+            initialization_email.append(message)
+
+        if prior_status.battery_count < self.config['minimum_batteries']:
+            message = 'This system has fewer batteries than the configured minimum.'
+            self.logger.warning(message)
+            initialization_email.append(message)
+
+        if initialization_email:
+            self._send_email(initialization_email)
 
         while True:
             current_status = self._get_composite_status()
@@ -155,9 +165,9 @@ class BatWatch(object):
 
         else:
             for battery in batteries:
-                if battery.State == 1:
+                if battery.State == UPOWER_DEVICE_STATE_CHARGING:
                     charge_status = CHARGING
-                elif battery.State == 4:
+                elif battery.State == UPOWER_DEVICE_STATE_FULLY_CHARGED:
                     pass
                 else:
                     charge_status = DISCHARGING
