@@ -3,15 +3,17 @@
 _batwatch_ monitors a system's batteries and UPS units for state changes and sends
 notifications via _gpgmailer_.
 
+batwatch is licensed under the GNU GPLv3.
+
 Bug fixes are welcome!
 
 ## System Power States
 
 _batwatch_ looks at the number of batteries installed on a system and each of those
-batteries' charge levels to determine the system's overall state to be one of the following.
+batteries' charge states to determine the system's overall state to be one of the following.
 
 * Fully Charged: All batteries are fully charged and not discharging.
-* Charging: All batteries are either fully charged or charging.
+* Charging: At least one battery is charging and no batteries are discharging.
 * Discharging: At least one battery is discharging.
 * No Battery: No batteries have been detected.
 
@@ -47,7 +49,8 @@ first:
 ## Post-Install configuration
 
 There is a configuration file at `/etc/batwatch/batwatch.conf.example` that needs to be
-copied to `/etc/batwatch/batwatch.conf`. Changes are not required for the daemon to start.
+copied to `/etc/batwatch/batwatch.conf`. No other changes are required for the daemon to
+start.
 
 ## Updates
 
