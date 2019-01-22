@@ -35,8 +35,8 @@ UPOWER_DEVICE_STATE_FULLY_CHARGED = 4
 #   determine "favorable" changes.
 NO_BATTERY, DISCHARGING, CHARGING, FULLY_CHARGED = range(4)
 
-# This list is built with insert instead of statically so that we only need to maintain
-#   the order in one place.
+# This list is built with insert instead of statically to avoid maintaining two lists with
+#   consistent ordering.
 CHARGE_STATUS_LIST = []
 CHARGE_STATUS_LIST.insert(NO_BATTERY, "No Battery")
 CHARGE_STATUS_LIST.insert(DISCHARGING, "Discharging")
@@ -141,7 +141,7 @@ class BatWatch(object):
     def _get_composite_status(self):
         """Get status information about batteries connected to the device Batwatch is running
         on, including the charge status. For descriptions of the charge statuses, refer to
-        the included README.
+        the project README.
 
         returns: CompositeStatus describing the count and overall charge status of the
             batteries.
@@ -154,7 +154,6 @@ class BatWatch(object):
             device = self.system_bus.get(UPOWER_BUS_NAME, device_name)
             # A device is considered a power supply if it powers the whole system.
             #   https://upower.freedesktop.org/docs/Device.html#Device:PowerSupply
-
             if device.PowerSupply:
                 batteries.append(device)
 
@@ -169,6 +168,8 @@ class BatWatch(object):
                     charge_status = CHARGING
                 elif battery.State == UPOWER_DEVICE_STATE_FULLY_CHARGED:
                     pass
+                # Anything state that is not one of the above two states are considered
+                #   discharging.
                 else:
                     charge_status = DISCHARGING
                     break

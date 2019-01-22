@@ -127,8 +127,8 @@ def read_configuration_and_create_logger(program_uid, program_gid):
     config['email_subject'] = config_helper.get_string_exists(
         config_parser, 'email_subject')
 
-    config['minimum_batteries'] = config_helper.verify_string_exists(
-        config_parser, 'minimum_batteries')
+    config['minimum_batteries'] = config_helper.verify_number_within_range(
+        config_parser, 'minimum_batteries', lower_bound=0)
 
     return config, config_helper, logger
 
