@@ -34,8 +34,8 @@ case "$1" in
     # Add the batwatch user
     if ! getent passwd "$BATWATCH_USER" >> /dev/null; then
         echo -n "Adding system user $BATWATCH_USER..."
-        adduser --quiet --system --ingroup "$BATWATCH_GROUP" --no-create-home --disabled-password \
-            "$BATWATCH_USER" 2> /dev/null
+        adduser --quiet --system --ingroup "$BATWATCH_GROUP" --no-create-home \
+            --disabled-password "$BATWATCH_USER" 2> /dev/null
         echo "done"
     fi
 

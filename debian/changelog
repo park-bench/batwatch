@@ -1,5 +1,9 @@
-batwatch (0.8) stable; urgency=low
+batwatch (0.8) UNRELEASED; urgency=low
 
+  [ Brittney Scaccia ]
   * Initial release.
 
- -- bdogg <bkscaccia@gmail.com>  Wed, 24 Apr 2018 21:33:00 -0500
+  [ Emily Frost ]
+  * Initial release.
+
+ -- Emily Frost <emfrost@posteo.net>  Wed, 24 Apr 2018 21:33:00 -0500
