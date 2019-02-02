@@ -51,9 +51,10 @@ There is a configuration file at `/etc/batwatch/batwatch.conf.example` that need
 copied to `/etc/batwatch/batwatch.conf`. The file's ownership and permissions also need to
 be changed:
 
-`chown root:batwatch /etc/batwatch/batwatch.conf`
-
-`chmod 640 /etc/batwatch/batwatch.conf`
+```
+chown root:batwatch /etc/batwatch/batwatch.conf
+chmod 640 /etc/batwatch/batwatch.conf
+```
 
 ## Updates
 
