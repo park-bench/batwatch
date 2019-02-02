@@ -98,7 +98,7 @@ class BatWatch(object):
         """
         self.logger.info("Monitoring the system's power state.")
 
-        # Arbitrarily initialize the current status and detect any deviations.
+        # Initialize the current status and detect any deviations.
         prior_status = self._get_composite_status()
 
         initialization_email = []
@@ -144,7 +144,7 @@ class BatWatch(object):
         project README.
 
         returns: CompositeStatus describing the count and overall charge status of the
-            batteries.
+          batteries.
         """
 
         device_names = self.upower_bus.EnumerateDevices()
