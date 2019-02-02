@@ -113,7 +113,7 @@ class BatWatch(object):
             initialization_email.append(message)
 
         if initialization_email:
-            self._send_email(initialization_email)
+            self._send_email('\n'.join(initialization_email))
 
         while True:
             current_status = self._get_composite_status()

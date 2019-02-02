@@ -124,7 +124,7 @@ def read_configuration_and_create_logger(program_uid, program_gid):
     config['average_delay'] = config_helper.verify_number_within_range(
         config_parser, 'average_delay', lower_bound=0)
 
-    config['email_subject'] = config_helper.get_string_exists(
+    config['email_subject'] = config_helper.get_string_if_exists(
         config_parser, 'email_subject')
 
     config['minimum_batteries'] = config_helper.verify_number_within_range(
