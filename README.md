@@ -48,10 +48,11 @@ first:
 ## Post-Install configuration
 
 There is a configuration file at `/etc/batwatch/batwatch.conf.example` that needs to be
-copied to `/etc/batwatch/batwatch.conf`, and it's ownership and permissions need to be
-changed:
+copied to `/etc/batwatch/batwatch.conf`. The file's ownership and permissions also need to
+be changed:
 
 `chown root:batwatch /etc/batwatch/batwatch.conf`
+
 `chmod 640 /etc/batwatch/batwatch.conf`
 
 ## Updates
