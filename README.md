@@ -53,7 +53,7 @@ be changed:
 
 ```
 chown root:batwatch /etc/batwatch/batwatch.conf
-chmod u=rw,g=r /etc/batwatch/batwatch.conf
+chmod u=rw,g=r,o= /etc/batwatch/batwatch.conf
 ```
 
 ## Updates
