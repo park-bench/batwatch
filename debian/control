@@ -2,7 +2,7 @@ Source: batwatch
 Section: parkbench
 Priority: required
 Maintainer: eviljoel, Emily Frost
-#Build-Depends:
+Build-Depends: debhelper
 Standards-Version: 3.9.6.1
 
 Package: batwatch

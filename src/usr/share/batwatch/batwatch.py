@@ -140,8 +140,8 @@ class BatWatch(object):
 
     def _get_composite_status(self):
         """Get status information about batteries connected to the device Batwatch is running
-        on, including the charge status. For descriptions of the charge statuses, refer to
-        the project README.
+        on, including the charge status. For a description of charge status, refer to the
+        project README.
 
         returns: CompositeStatus describing the count and overall charge status of the
             batteries.
@@ -168,7 +168,7 @@ class BatWatch(object):
                     charge_status = CHARGING
                 elif battery.State == UPOWER_DEVICE_STATE_FULLY_CHARGED:
                     pass
-                # Anything state that is not one of the above two states are considered
+                # Any state that is not one of the above two states is considered
                 #   discharging.
                 else:
                     charge_status = DISCHARGING
