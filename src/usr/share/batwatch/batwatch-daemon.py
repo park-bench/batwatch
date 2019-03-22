@@ -66,14 +66,16 @@ def get_user_and_group_ids():
     except KeyError as key_error:
         # TODO: When switching to Python 3, convert to chained exception.
         #   (gpgmailer issue 15)
-        print('User %s does not exist.' % PROCESS_USERNAME)
+        print('User %s does not exist. %s: %s' % (
+            PROCESS_USERNAME, type(key_error).__name__, str(key_error)))
         raise key_error
     try:
         program_group = grp.getgrnam(PROCESS_GROUP_NAME)
     except KeyError as key_error:
         # TODO: When switching to Python 3, convert to chained exception.
         #   (gpgmailer issue 15)
-        print('Group %s does not exist.' % PROCESS_GROUP_NAME)
+        print('Group %s does not exist. %s: %s' % (
+            PROCESS_GROUP_NAME, type(key_error).__name__, str(key_error)))
         raise key_error
 
     return program_user.pw_uid, program_group.gr_gid
@@ -94,13 +96,14 @@ def read_configuration_and_create_logger(program_uid, program_gid):
         raise InitializationException(
             'Configuration file %s does not exist. Quitting.' % CONFIGURATION_PATHNAME)
 
-    config_parser = ConfigParser.SafeConfigParser()
-    config_parser.read(CONFIGURATION_PATHNAME)
+    config_file = ConfigParser.SafeConfigParser()
+    config_file.read(CONFIGURATION_PATHNAME)
 
-    # Logging config goes first
     config = {}
     config_helper = confighelper.ConfigHelper()
-    config['log_level'] = config_helper.verify_string_exists(config_parser, 'log_level')
+    # Figure out the logging options so that can start before anything else.
+    # TODO: Eventually add a verify_string_list method. (gpgmailer issue 20)
+    config['log_level'] = config_helper.verify_string_exists(config_file, 'log_level')
 
     # Create logging directory.  drwxr-x--- batwatch batwatch
     log_mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP
@@ -108,12 +111,13 @@ def read_configuration_and_create_logger(program_uid, program_gid):
     #   bootstrapped. (gpgmailer issue 18)
     print('Creating logging directory %s.' % LOG_DIR)
     if not os.path.isdir(LOG_DIR):
-        # Will throw exception if file cannot be created.
+        # Will throw exception if directory cannot be created.
         os.makedirs(LOG_DIR, log_mode)
     os.chown(LOG_DIR, program_uid, program_gid)
     os.chmod(LOG_DIR, log_mode)
 
-    # Temporarily drop permission and create the handle to the logger.
+    # Temporarily drop permissions and create the handle to the logger.
+    print('Configuring logger.')
     os.setegid(program_gid)
     os.seteuid(program_uid)
     config_helper.configure_logger(os.path.join(LOG_DIR, LOG_FILE), config['log_level'])
@@ -122,13 +126,13 @@ def read_configuration_and_create_logger(program_uid, program_gid):
 
     logger.info('Verifying non-logging configuration.')
     config['average_delay'] = config_helper.verify_number_within_range(
-        config_parser, 'average_delay', lower_bound=0)
+        config_file, 'average_delay', lower_bound=0)
 
     config['email_subject'] = config_helper.get_string_if_exists(
-        config_parser, 'email_subject')
+        config_file, 'email_subject')
 
     config['minimum_batteries'] = config_helper.verify_number_within_range(
-        config_parser, 'minimum_batteries', lower_bound=0)
+        config_file, 'minimum_batteries', lower_bound=0)
 
     return config, config_helper, logger
 
@@ -159,10 +163,10 @@ def create_directory(system_path, program_dirs, uid, gid, mode):
     program_dirs: A string representing additional directories that should be created under
       the system path that should take on the following ownership and permissions.
     uid: The system user ID that should own the directory.
-    gid: The system group ID that should own be associated with the directory.
-    mode: The umask of the directory access permissions.
+    gid: The system group ID that should be associated with the directory.
+    mode: The unix standard 'mode bits' that should be associated with the directory.
     """
-    logger.info('Creating directory %s.' % os.path.join(system_path, program_dirs))
+    logger.info('Creating directory %s.', os.path.join(system_path, program_dirs))
 
     path = system_path
     for directory in program_dirs.strip('/').split('/'):
@@ -180,14 +184,14 @@ def drop_permissions_forever(uid, gid):
     uid: The system user ID to drop to.
     gid: The system group ID to drop to.
     """
-    logger.info('Dropping permissions for user %s.' % PROCESS_USERNAME)
+    logger.info('Dropping permissions for user %s.', PROCESS_USERNAME)
     os.initgroups(PROCESS_USERNAME, gid)
     os.setgid(gid)
     os.setuid(uid)
 
 
 def sig_term_handler(signal, stack_frame):
-    """Signal handler for SIGTERM. Kills Tor and quits when SIGTERM is received.
+    """Signal handler for SIGTERM. Quits when SIGTERM is received.
 
     signal: Object representing the signal thrown.
     stack_frame: Represents the stack frame.
@@ -198,11 +202,11 @@ def sig_term_handler(signal, stack_frame):
 
 def setup_daemon_context(log_file_handle, program_uid, program_gid):
     """Creates the daemon context. Specifies daemon permissions, PID file information, and
-    signal handler.
+    the signal handler.
 
     log_file_handle: The file handle to the log file.
-    program_uid: The system user ID the daemon should run as.
-    program_gid: The system group ID the daemon should run as.
+    program_uid: The system user ID that should own the daemon process.
+    program_gid: The system group ID that should be assigned to the daemon process.
     Returns the daemon context.
     """
     daemon_context = daemon.DaemonContext(
@@ -231,7 +235,6 @@ config, config_helper, logger = read_configuration_and_create_logger(
     program_uid, program_gid)
 
 try:
-
     verify_safe_file_permissions()
 
     # Re-establish root permissions to create required directories.
@@ -239,10 +242,9 @@ try:
     os.setegid(os.getgid())
 
     # Non-root users cannot create files in /run, so create a directory that can be written
-    #   to. Full access to user only.  drwx------
-    create_directory(
-        SYSTEM_PID_DIR, PROGRAM_PID_DIRS, program_uid, program_gid,
-        stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+    #   to. Full access to user only.  drwx------ batwatch batwatch
+    create_directory(SYSTEM_PID_DIR, PROGRAM_PID_DIRS, program_uid, program_gid,
+                     stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
     # Configuration has been read and directories setup. Now drop permissions forever.
     drop_permissions_forever(program_uid, program_gid)
@@ -250,12 +252,13 @@ try:
     daemon_context = setup_daemon_context(
         config_helper.get_log_file_handle(), program_uid, program_gid)
 
+    logger.info('Daemonizing...')
     with daemon_context:
-        logger.info('Initializing BatWatch.')
+        logger.debug('Initializing BatWatch.')
         batwatch = batwatch.BatWatch(config)
         batwatch.start_monitoring()
 
 except Exception as exception:
-    logger.critical('Fatal %s: %s\n%s' % (type(exception).__name__, str(exception),
-                                          traceback.format_exc()))
+    logger.critical('Fatal %s: %s\n%s', type(exception).__name__, str(exception),
+                    traceback.format_exc())
     raise exception
