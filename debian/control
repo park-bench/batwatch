@@ -7,5 +7,5 @@ Standards-Version: 3.9.6.1
 
 Package: batwatch
 Architecture: all
-Depends: adduser (>= 3.11), gpgmailer (>=0.7), parkbench-common (>=0.8), python-daemon, python-pydbus, upower
+Depends: adduser (>= 3.11), gpgmailer (>=0.8), parkbench-common (>=0.8), python-daemon, python-pydbus, upower
 Description: Daemon that checks battery status of the host device and sends encrypted notifications of status changes.
