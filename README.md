@@ -35,7 +35,7 @@ The only current method of installation for our software is building and install
 _batwatch_ depends two other packages in the Parkbench project, which must be installed
 first:
 
-* [_confighelper_](https://github.com/park-bench/confighelper)
+* [_parkbench-common_](https://github.com/park-bench/parkbench-common)
 * [_gpgmailer_](https://github.com/park-bench/gpgmailer)
 
 ## Steps to Build and Install

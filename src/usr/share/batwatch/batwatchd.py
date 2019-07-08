@@ -35,7 +35,7 @@ import daemon
 from lockfile import pidlockfile
 from pydbus import SystemBus
 import batwatch
-import confighelper
+from parkbenchcommon import confighelper
 
 # Constants
 PROGRAM_NAME = 'batwatch'
