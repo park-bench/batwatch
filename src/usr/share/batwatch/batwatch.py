@@ -44,7 +44,7 @@ CHARGE_STATUS_LIST.insert(CHARGING, "Charging")
 CHARGE_STATUS_LIST.insert(FULLY_CHARGED, "Fully Charged")
 
 
-class CompositeStatus(object):
+class CompositeStatus():
     """Stores state information for multiple batteries in an easily comparable object."""
     def __init__(self, battery_count, charge_status):
         """Constructor.
@@ -77,7 +77,7 @@ class CompositeStatus(object):
         return not self == other
 
 
-class BatWatch(object):
+class BatWatch():
     """Monitors the status of the system battery and notifies designated recipient(s) of
     changes via gpgmailer encrypted e-mail.
     """

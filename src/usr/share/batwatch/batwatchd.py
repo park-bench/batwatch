@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 
 # Copyright 2018-2019 Joel Allen Luellwitz and Emily Frost
 #
@@ -30,7 +30,7 @@ import signal
 import stat
 import sys
 import traceback
-import ConfigParser
+import configparser
 import daemon
 from lockfile import pidlockfile
 from pydbus import SystemBus
@@ -96,7 +96,7 @@ def read_configuration_and_create_logger(program_uid, program_gid):
         raise InitializationException(
             'Configuration file %s does not exist. Quitting.' % CONFIGURATION_PATHNAME)
 
-    config_file = ConfigParser.SafeConfigParser()
+    config_file = configparser.SafeConfigParser()
     config_file.read(CONFIGURATION_PATHNAME)
 
     config = {}
