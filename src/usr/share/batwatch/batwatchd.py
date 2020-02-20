@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright 2018-2019 Joel Allen Luellwitz and Emily Frost
+# Copyright 2018-2020 Joel Allen Luellwitz and Emily Frost
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -33,7 +33,6 @@ import traceback
 import configparser
 import daemon
 from lockfile import pidlockfile
-from pydbus import SystemBus
 import batwatch
 from parkbenchcommon import confighelper
 
@@ -64,19 +63,13 @@ def get_user_and_group_ids():
     try:
         program_user = pwd.getpwnam(PROCESS_USERNAME)
     except KeyError as key_error:
-        # TODO: When switching to Python 3, convert to chained exception.
-        #   (gpgmailer issue 15)
-        print('User %s does not exist. %s: %s' % (
-            PROCESS_USERNAME, type(key_error).__name__, str(key_error)))
-        raise key_error
+        message = 'User %s does not exist.' % PROCESS_USERNAME
+        raise InitializationException(message) from key_error
     try:
         program_group = grp.getgrnam(PROCESS_GROUP_NAME)
     except KeyError as key_error:
-        # TODO: When switching to Python 3, convert to chained exception.
-        #   (gpgmailer issue 15)
-        print('Group %s does not exist. %s: %s' % (
-            PROCESS_GROUP_NAME, type(key_error).__name__, str(key_error)))
-        raise key_error
+        message = 'Group %s does not exist.' % PROCESS_GROUP_NAME
+        raise InitializationException(message) from key_error
 
     return program_user.pw_uid, program_group.gr_gid
 
@@ -230,8 +223,8 @@ def setup_daemon_context(log_file_handle, program_uid, program_gid):
 
 
 def main():
-    """The container function for the entire script. It loads and verifies configuration,
-    then daemonizes and starts the main loop.
+    """The parent function for the entire program. It loads and verifies configuration,
+    daemonizes, and starts the main program loop.
     """
     os.umask(PROGRAM_UMASK)
     program_uid, program_gid = get_user_and_group_ids()
@@ -246,8 +239,8 @@ def main():
         os.seteuid(os.getuid())
         os.setegid(os.getgid())
 
-        # Non-root users cannot create files in /run, so create a directory that can be written
-        #   to. Full access to user only.  drwx------ batwatch batwatch
+        # Non-root users cannot create files in /run, so create a directory that can be
+        #   written to. Full access to user only.  drwx------ batwatch batwatch
         create_directory(SYSTEM_PID_DIR, PROGRAM_PID_DIRS, program_uid, program_gid,
                          stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
