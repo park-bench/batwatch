@@ -30,6 +30,8 @@ import gpgmailmessage
 UPOWER_BUS_NAME = 'org.freedesktop.UPower'
 UPOWER_DEVICE_STATE_CHARGING = 1
 UPOWER_DEVICE_STATE_FULLY_CHARGED = 4
+UPOWER_DEVICE_TYPE_BATTERY = 2
+UPOWER_DEVICE_TYPE_UPS = 3
 
 # These constants are integers instead of strings because they need to be compared to
 #   determine "favorable" changes.
@@ -64,7 +66,7 @@ class CompositeStatus():
             if self.battery_count == 1:
                 battery_word = 'battery'
 
-            english_status = CHARGE_STATUS_LIST[self.battery_count]
+            english_status = CHARGE_STATUS_LIST[self.charge_status]
             english_representation = '%s %s %s' % (
                 self.battery_count, battery_word, english_status)
 
@@ -154,7 +156,8 @@ class BatWatch():
             device = self.system_bus.get(UPOWER_BUS_NAME, device_name)
             # A device is considered a power supply if it powers the whole system.
             #   https://upower.freedesktop.org/docs/Device.html#Device:PowerSupply
-            if device.PowerSupply:
+            if device.PowerSupply and (device.Type == UPOWER_DEVICE_TYPE_BATTERY or \
+                    device.Type == UPOWER_DEVICE_TYPE_UPS):
                 batteries.append(device)
 
         charge_status = FULLY_CHARGED
