@@ -29,6 +29,7 @@ The only current method of installation for our software is building and install
 *    You are already familiar with using a Linux terminal.
 *    You are already somewhat familiar with using debuild.
 *    `debhelper` and `devscripts` are installed on your build server.
+*    You are familiar with GnuPG.
 
 ## Parkbench Dependencies
 
