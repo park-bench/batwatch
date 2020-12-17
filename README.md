@@ -51,15 +51,16 @@ batwatch depends on two other Parkbench packages, which must be installed first:
 3.  Run `apt install /path/to/package.deb` to install the package. The daemon will attempt to
     start and fail. (This is expected.)
 4.  Copy or rename the example configuration file `/etc/batwatch/batwatch.conf.example` to
-    `/etc/batwatch/batwatch.conf`. Make any desired configuration changes.
+    `/etc/batwatch/batwatch.conf`.
 5.  Change the ownership and permissions of the configuration file:
 ```
 chown root:batwatch /etc/batwatch/batwatch.conf
 chmod u=rw,g=r,o= /etc/batwatch/batwatch.conf
 ```
-6.  To ease system maintenance, add `batwatch` as a supplemental group to administrative
+6.  Make any desired configuration changes to `/etc/batwatch/batwatch.conf`.
+7.  To ease system maintenance, add `batwatch` as a supplemental group to administrative
     users. Doing this will allow these users to view batwatch log files.
-7.  Restart the daemon with `systemctl restart batwatch`. If the configuration file is valid,
+8.  Restart the daemon with `systemctl restart batwatch`. If the configuration file is valid,
     named correctly, and has the correct file permissions, the service will start
     successfully.
 
