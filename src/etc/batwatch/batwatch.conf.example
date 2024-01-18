@@ -7,8 +7,8 @@
 #   INFO, DEBUG, and TRACE. This value is case insensitive.
 log_level=INFO
 
-# Average delay between battery checks, in seconds.
-average_delay=1
+# Maximum delay between battery checks, in seconds.
+main_loop_max_delay=1
 
 # The minimum number of batteries this system is expected to have. If the number of
 #   batteries detected is fewer than this value, a warning email will be sent on startup.

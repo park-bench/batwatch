@@ -46,5 +46,5 @@ case "$1" in
     ;;
 esac
 
-update-rc.d batwatch defaults || exit 1
+systemctl enable batwatch || exit 1
 systemctl restart batwatch || exit 1

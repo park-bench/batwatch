@@ -1,4 +1,4 @@
-# Copyright 2018-2020 Joel Allen Luellwitz and Emily Frost
+# Copyright 2018-2024 Joel Allen Luellwitz and Emily Frost
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -137,7 +137,7 @@ class BatWatch():
                 self.logger.trace('No changes in battery status.')
 
             # Delay for a random amount of time to make BatWatch harder to fingerprint.
-            delay = random.uniform(0, self.config['average_delay'])
+            delay = random.uniform(0, self.config['main_loop_max_delay'])
             time.sleep(delay)
 
     def _get_composite_status(self):

@@ -1,0 +1,163 @@
+* Can build following the instructions.
+* Test the init.d script:
+  * Exit if daemon program is not installed.
+  * Source the /etc/default/batwatch file if it exists.
+  * start
+    * starts the program from stop
+    * doesn't restart the program if started.
+  * stop
+    * PID file removed
+  * status prints status
+  * restart
+    * Starts when not running.
+    * restarts when running.
+  * force-reload
+    * Same as restart except doesn't start from stop.
+  * anything else prints usage
+* Following the instructions results in a working application.
+* On install, the batwatch group is created if it doesn't exist.
+* On install, the batwatch group already exists.
+* On install, the batwatch user is created if it doesn't exist.
+  * Has the batwatch group.
+* On install, the batwatch user already exists without the batwatch group.
+  * Has the batwatch group.
+* batwatch is started following install.
+* batwatch is enabled following install.
+* Reinstalling does restart batwatch.
+* Reinstalling enables batwatch.
+* Verify the config matches the example.
+* Verify the license is installed.
+* Verify changelog is sufficiently updated.
+* Test starting when the batwatch user does not exist.
+* Test starting when the batwatch group does not exist.
+* Program fails to start when configuration file missing.
+* Log directory gets created if it doesn't exist.
+  * Permissions are correct on /var/log/batwatch/batwatch.log
+    * Owner and group
+    * Permission bits
+  * Permissions are correct on /var/log/batwatch/
+    * Owner and group
+    * Permission bits
+* Log directory already exists.
+  * Permissions are corrected on /var/log/batwatch/batwatch.log
+    * Owner and group
+    * Permission bits
+  * Permissions are correct on /var/log/batwatch/
+    * Owner and group
+    * Permission bits
+* log_level setting missing.
+* log_level setting empty.
+* log_level isn't one of trace, debug, info, warn, error, critical
+* log_level is one of trace, debug, info, warn, error, critical
+  * And try uppercase.
+* Process eoid is batwatch after log directory creation.
+* Process egid is batwatch after log directory creation.
+* main_loop_max_delay fails if it does not exist.
+* main_loop_max_delay fails if blank.
+* main_loop_max_delay fails if not a number.
+* main_loop_max_delay fails if less than zero.
+* main_loop_max_delay succeeds if zero.
+* main_loop_max_delay succeeds if greater than zero.
+* minimum_batteries fails if it does not exist.
+* minimum_batteries fails if blank.
+* minimum_batteries fails if not an integer.
+* minimum_batteries fails if less than zero.
+* minimum_batteries succeeds if zero.
+* minimum_batteries succeeds if greater than zero.
+* email_subject fails if it does not exist.
+* email_subject succeeds if blank.
+* email_subject succeeds if not blank.
+* Exception is raised if configuration file is not owned by root.
+* Exception is raised if configuration file has 'group' write permission set.
+* Exception is raised if configuration file has 'other' permissions set.
+  * r
+  * w
+  * x
+* Run directory gets created if it doesn't exist.
+  * Permissions are correct on /run/batwatch/batwatch.pid
+    * Owner and group are batwatch
+    * Permission bits
+  * Permissions are correct on /run/batwatch/
+    * Owner and group are batwatch
+    * Permission bits
+* Run directory already exists.
+  * Permissions are correct on /run/batwatch/batwatch.pid
+    * Owner and group are batwatch
+    * Permission bits
+  * Permissions are correct on /run/batwatch/
+    * Owner and group are batwatch
+    * Permission bits are corrected
+* Once permissions are dropped, the egid cannot be changed.
+* Once permissions are dropped, the euid cannot be changed.
+* The program has the correct groups after permissions are dropped. (batwatch, gpgmailer)
+* The pid file contains the correct process number. (Test without coverage hack.)
+* Before daemonize program's umask is set correctly.
+  * Test file creation.
+  * Test directory creation.
+* After daemonize program's umask is set correctly.
+  * Test file creation.
+  * Test directory creation.
+* After daemonize, the program have a blank ouid.
+* Before daemonize, the program should have an suid, euid, ruid, sgid, egid, rgid of batwatch.
+* After daemonize, the program should have an suid, euid, ruid, sgid, egid, rgid of batwatch.
+* systemd considers the service stopped on expected termination.
+* systemd considers the service stopped on unexpected termination.
+* Program doesn't crash when battery is not plugged in at startup.
+* Program doesn't crash when battery is plugged in at startup.
+F Unexpected exception does not kill the daemon.
+F Still running e-mail:
+  F Sent at the appropriate delay.
+  F Content is accurate.
+* Program starts and is charging or fully charged and has sufficient batteries.
+  * No e-mail is sent.
+* Program starts and is discharging.
+  * Send appropriate warning e-mail.
+* Program starts without required batteries.
+  * Send appropriate warning e-mail.
+* Program starts and is discharging and doesn't have sufficient batteries.
+  * Send combination warning e-mail.
+* A degration in battery state logs a warning.
+  * Degration in number of batteries.
+  * Degration in charging status.
+  * Degration in number of batteries but improvement in charging status.
+  * Degration in charging status but increase in number of batteries.
+  * Degration in both charging status and number of batteries.
+* An improvement in battery state logs as info.
+  * An improvement in number of batteries.
+  * An improvement in charging status.
+  * An improvement in both charging status and number of batteries.
+* A change in battery status results in an e-mail.
+  * Works with a subject.
+  * Works without a subject.
+* No change in battery status results in trace statement.
+* Battery status messages:
+  * Properly displays no batteries.
+  * Properly displays Discharging
+  * Properly displays Charging
+  * Properly displays Fully Charged
+  * Properly displays 0 batteries.
+  * Properly displays 1 battery.
+  * Properly displays 2 batteries.
+* main_loop_max_delay is recognized.
+* Repeatedly unplug and plug back in the battery.
+  * Do it fast to try to screw stuff up.
+* Repeatedly unplug and plug back in the UPS.
+  * Do it fast to try to screw stuff up.
+* Test with battery.
+  * Can display fully charged.
+  * Can display charging.
+  * Can display discharging.
+* Test with UPS.
+  * Can display fully charged.
+  * Can display charging.
+  * Can display discharging.
+* Test with both a battery and a UPS.
+  * Can display fully charged with 2 batteries.
+  * Charging if UPS is charging and battery is fully charged.
+  * Charging if battery is charging and UPS is fully charged.
+  * Charging of both are charging.
+  * Discharging if UPS is discharging.
+  * Discharging if battery is discharging.
+  * Discharging if both are discharging (situation can be faked by not having the UPS in the actual power chain.)
+  * Test with various "discharging" states. (0: Unknown, 2: Discharging, 3: Empty, 5: Pending charge, 6: Pending discharge) if you can produce them.
+* Program kinda resets after there hasn't been activity for a long time and everything above works when a change is reintroduced.

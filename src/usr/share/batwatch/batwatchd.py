@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright 2018-2020 Joel Allen Luellwitz and Emily Frost
+# Copyright 2018-2024 Joel Allen Luellwitz and Emily Frost
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -118,8 +118,8 @@ def read_configuration_and_create_logger(program_uid, program_gid):
     logger = logging.getLogger(__name__)
 
     logger.info('Verifying non-logging configuration.')
-    config['average_delay'] = config_helper.verify_number_within_range(
-        config_file, 'average_delay', lower_bound=0)
+    config['main_loop_max_delay'] = config_helper.verify_number_within_range(
+        config_file, 'main_loop_max_delay', lower_bound=0)
 
     config['email_subject'] = config_helper.get_string_if_exists(
         config_file, 'email_subject')
@@ -140,6 +140,10 @@ def verify_safe_file_permissions():
     if config_file_stat.st_uid != 0:
         raise InitializationException(
             'File %s must be owned by root.' % CONFIGURATION_PATHNAME)
+    if bool(config_file_stat.st_mode & stat.S_IWGRP):
+        raise InitializationException(
+            "File %s cannot be writable via the group access permission."
+            % CONFIGURATION_PATHNAME)
     if bool(config_file_stat.st_mode & (stat.S_IROTH | stat.S_IWOTH | stat.S_IXOTH)):
         raise InitializationException(
             "File %s cannot have 'other user' access permissions set."
