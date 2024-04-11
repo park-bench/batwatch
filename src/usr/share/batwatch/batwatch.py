@@ -24,6 +24,7 @@ __version__ = '0.8'
 import logging
 import random
 import time
+import traceback
 from pydbus import SystemBus
 import gpgmailmessage
 
@@ -92,6 +93,27 @@ class BatWatch():
         self.logger = logging.getLogger(__name__)
         self.system_bus = SystemBus()
         self.upower_bus = SystemBus().get(UPOWER_BUS_NAME)
+
+        try:
+            self.prior_status = self._get_composite_status()
+        except Exception as exception:
+            self.logger.error(
+                "Cannot read battery composite status. Will try again in one second. "
+                "%s: %s\n%s",
+                type(exception).__name__, str(exception), traceback.format_exc()
+            )
+            try:
+                time.sleep(1)
+                self.prior_status = self._get_composite_status()
+            except Exception as exception2:
+                self.logger.error(
+                    "Cannot read battery composite status. Will try again in 10 seconds. "
+                    "%s: %s\n%s",
+                    type(exception2).__name__, str(exception2), traceback.format_exc()
+                )
+                time.sleep(10)
+                self.prior_status = self._get_composite_status()
+
         self.config = config
 
     def start_monitoring(self):
@@ -100,41 +122,33 @@ class BatWatch():
         """
         self.logger.info("Monitoring the system's power state.")
 
-        # Initialize the current status and detect any deviations.
-        prior_status = self._get_composite_status()
-
-        initialization_email = []
-        if prior_status.charge_status == DISCHARGING:
-            message = 'This system was discharging when Batwatch was initialized.'
-            self.logger.warning(message)
-            initialization_email.append(message)
-
-        if prior_status.battery_count < self.config['minimum_batteries']:
-            message = 'This system has fewer batteries than the configured minimum.'
-            self.logger.warning(message)
-            initialization_email.append(message)
-
-        if initialization_email:
-            self._send_email('\n'.join(initialization_email))
+        self._report_initial_state_deviations()
 
         while True:
-            current_status = self._get_composite_status()
-            if prior_status != current_status:
-                if prior_status.battery_count > current_status.battery_count \
-                    or prior_status.charge_status > current_status.charge_status:
-                    self.logger.warning('Battery state changed from %s to %s.',
-                                        prior_status, current_status)
-                else:
-                    self.logger.info('Battery state changed from %s to %s.', prior_status,
-                                     current_status)
+            try:
+                current_status = self._get_composite_status()
+                if self.prior_status != current_status:
+                    if self.prior_status.battery_count > current_status.battery_count \
+                       or self.prior_status.charge_status > current_status.charge_status:
+                        self.logger.warning('Battery state changed from %s to %s.',
+                                            self.prior_status, current_status)
+                    else:
+                        self.logger.info('Battery state changed from %s to %s.',
+                                         self.prior_status, current_status)
 
-                email_text = "Batwatch detected a change in your device's battery status:" \
-                    "\n\nThe previous status was %s. The new status is %s." % (
-                        prior_status, current_status)
-                self._send_email(email_text)
-                prior_status = current_status
-            else:
-                self.logger.trace('No changes in battery status.')
+                    email_text = "Batwatch detected a change in your device's battery " \
+                        "status:\n\nThe previous status was %s. The new status is %s." % (
+                            self.prior_status, current_status)
+                    self._send_email(email_text)
+                    self.prior_status = current_status
+                else:
+                    self.logger.trace('No changes in battery status.')
+
+            except Exception as exception:
+                self.logger.error(
+                    "Unexpected error. %s: %s\n%s",
+                    type(exception).__name__, str(exception), traceback.format_exc()
+                )
 
             # Delay for a random amount of time to make BatWatch harder to fingerprint.
             delay = random.uniform(0, self.config['main_loop_max_delay'])
@@ -156,8 +170,8 @@ class BatWatch():
             device = self.system_bus.get(UPOWER_BUS_NAME, device_name)
             # A device is considered a power supply if it powers the whole system.
             #   https://upower.freedesktop.org/docs/Device.html#Device:PowerSupply
-            if device.PowerSupply and (device.Type == UPOWER_DEVICE_TYPE_BATTERY or \
-                    device.Type == UPOWER_DEVICE_TYPE_UPS):
+            if device.PowerSupply and (device.Type == UPOWER_DEVICE_TYPE_BATTERY or
+                                       device.Type == UPOWER_DEVICE_TYPE_UPS):
                 batteries.append(device)
 
         charge_status = FULLY_CHARGED
@@ -178,6 +192,31 @@ class BatWatch():
                     break
 
         return CompositeStatus(len(batteries), charge_status)
+
+    def _report_initial_state_deviations(self):
+        """ Report any deviations from the expected initial state. """
+
+        try:
+            initialization_email = []
+            if self.prior_status.charge_status == DISCHARGING:
+                message = 'This system was discharging when Batwatch was initialized.'
+                self.logger.warning(message)
+                initialization_email.append(message)
+
+            if self.prior_status.battery_count < self.config['minimum_batteries']:
+                message = 'This system has fewer batteries than the configured minimum.'
+                self.logger.warning(message)
+                initialization_email.append(message)
+
+            if initialization_email:
+                self._send_email('\n'.join(initialization_email))
+
+        except Exception as exception:
+            self.logger.error(
+                "Error evaluating the initial state. Skipping the initial state e-mail. "
+                "%s: %s\n%s",
+                type(exception).__name__, str(exception), traceback.format_exc()
+            )
 
     def _send_email(self, body_text):
         """Sends an e-mail.
