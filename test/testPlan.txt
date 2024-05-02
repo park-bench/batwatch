@@ -18,9 +18,11 @@
 * On install, the batwatch group is created if it doesn't exist.
 * On install, the batwatch group already exists.
 * On install, the batwatch user is created if it doesn't exist.
-  * Has the batwatch group.
-* On install, the batwatch user already exists without the batwatch group.
-  * Has the batwatch group.
+  * Has the batwatch primary group.
+  * Has the gpgmailer secondary group.
+* On install, the batwatch user already exists without the batwatch and gpgmailer groups.
+  * Has the batwatch primary group.
+  * Has the gpgmailer secondary group.
 * batwatch is started following install.
 * batwatch is enabled following install.
 * Reinstalling does restart batwatch.
@@ -64,7 +66,7 @@
 * minimum_batteries fails if less than zero.
 * minimum_batteries succeeds if zero.
 * minimum_batteries succeeds if greater than zero.
-* email_subject fails if it does not exist.
+* email_subject succeeds if it does not exist.
 * email_subject succeeds if blank.
 * email_subject succeeds if not blank.
 * Exception is raised if configuration file is not owned by root.
@@ -104,7 +106,7 @@
 * systemd considers the service stopped on unexpected termination.
 * Program doesn't crash when battery is not plugged in at startup.
 * Program doesn't crash when battery is plugged in at startup.
-F Unexpected exception does not kill the daemon.
+* Unexpected exception does not kill the daemon.
 F Still running e-mail:
   F Sent at the appropriate delay.
   F Content is accurate.
@@ -131,7 +133,6 @@ F Still running e-mail:
   * Works without a subject.
 * No change in battery status results in trace statement.
 * Battery status messages:
-  * Properly displays no batteries.
   * Properly displays Discharging
   * Properly displays Charging
   * Properly displays Fully Charged
@@ -139,9 +140,11 @@ F Still running e-mail:
   * Properly displays 1 battery.
   * Properly displays 2 batteries.
 * main_loop_max_delay is recognized.
+* Repeatedly unplug and plug back in the power source.
+  * Do it fast to try to screw stuff up.
 * Repeatedly unplug and plug back in the battery.
   * Do it fast to try to screw stuff up.
-* Repeatedly unplug and plug back in the UPS.
+* Repeatedly unplug and plug back in the UPS USB port.
   * Do it fast to try to screw stuff up.
 * Test with battery.
   * Can display fully charged.
@@ -161,3 +164,4 @@ F Still running e-mail:
   * Discharging if both are discharging (situation can be faked by not having the UPS in the actual power chain.)
   * Test with various "discharging" states. (0: Unknown, 2: Discharging, 3: Empty, 5: Pending charge, 6: Pending discharge) if you can produce them.
 * Program kinda resets after there hasn't been activity for a long time and everything above works when a change is reintroduced.
+* Sufficient coverage using coverage tool.
