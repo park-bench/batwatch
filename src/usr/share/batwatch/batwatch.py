@@ -162,8 +162,8 @@ class BatWatch():
     def _sig_term_handler(self, _signal, _stack_frame):
         """Signal handler for SIGTERM. Quits when SIGTERM is received.
 
-        _signal: Object representing the signal thrown.
-        _stack_frame: Represents the stack frame.
+        _signal (int): The signal number that was thrown.
+        _stack_frame (frame): Represents the stack frame.
         """
         self.terminate = True
 
