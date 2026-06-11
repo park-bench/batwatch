@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright 2018-2024 Joel Allen Luellwitz and Emily Frost
+# Copyright 2018-2026 Joel Allen Luellwitz and Emily Frost
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,33 +20,22 @@
 # TODO: Eventually consider running in a chroot or jail. (gpgmailer issue 17)
 
 __author__ = 'Joel Luellwitz, Emily Frost, and Brittney Scaccia'
-__version__ = '0.8'
+__version__ = '0.9'
 
-import grp
 import logging
 import os
 import pwd
-import signal
+import sdnotify
 import stat
-import sys
 import traceback
 import configparser
-import daemon
-from lockfile import pidlockfile
 import batwatch
 from parkbenchcommon import confighelper
 
 # Constants
 PROGRAM_NAME = 'batwatch'
-CONFIGURATION_PATHNAME = os.path.join('/etc', PROGRAM_NAME, '%s.conf' % PROGRAM_NAME)
-SYSTEM_PID_DIR = '/run'
-PROGRAM_PID_DIRS = PROGRAM_NAME
-PID_FILE = '%s.pid' % PROGRAM_NAME
-LOG_DIR = os.path.join('/var/log', PROGRAM_NAME)
-LOG_FILE = '%s.log' % PROGRAM_NAME
+CONFIGURATION_PATHNAME = f'/etc/{PROGRAM_NAME}/{PROGRAM_NAME}.conf'
 PROCESS_USERNAME = PROGRAM_NAME
-PROCESS_GROUP_NAME = PROGRAM_NAME
-PROGRAM_UMASK = 0o027  # -rw-r----- and drwxr-x---
 
 
 class InitializationException(Exception):
@@ -55,79 +44,45 @@ class InitializationException(Exception):
     """
 
 
-def get_user_and_group_ids():
-    """Get user and group information for dropping privileges.
+def read_configuration():
+    """Reads and validates the configuration file. Supported configuration options are
+    returned as a dictonary.
 
-    Returns the user and group IDs that the program should eventually run as.
+    Return (dict): The read system configuration.
     """
-    try:
-        program_user = pwd.getpwnam(PROCESS_USERNAME)
-    except KeyError as key_error:
-        message = 'User %s does not exist.' % PROCESS_USERNAME
-        raise InitializationException(message) from key_error
-    try:
-        program_group = grp.getgrnam(PROCESS_GROUP_NAME)
-    except KeyError as key_error:
-        message = 'Group %s does not exist.' % PROCESS_GROUP_NAME
-        raise InitializationException(message) from key_error
+    logger = logging.getLogger(__name__)
 
-    return program_user.pw_uid, program_group.gr_gid
+    logger.info(f'Reading {CONFIGURATION_PATHNAME}...')
+    config_parser = configparser.ConfigParser()
+    config_parser.read(CONFIGURATION_PATHNAME)
 
-
-def read_configuration_and_create_logger(program_uid, program_gid):
-    """Reads the configuration file and creates the application logger. This is done in the
-    same function because part of the logger creation is dependent upon reading the
-    configuration file.
-
-    program_uid: The system user ID this program should drop to before daemonization.
-    program_gid: The system group ID this program should drop to before daemonization.
-    Returns the read system config, a confighelper instance, and a logger instance.
-    """
-    print('Reading %s...' % CONFIGURATION_PATHNAME)
-
-    if not os.path.isfile(CONFIGURATION_PATHNAME):
-        raise InitializationException(
-            'Configuration file %s does not exist. Quitting.' % CONFIGURATION_PATHNAME)
-
-    config_file = configparser.SafeConfigParser()
-    config_file.read(CONFIGURATION_PATHNAME)
+    logger.info('Validating batwatch configuration.')
 
     config = {}
     config_helper = confighelper.ConfigHelper()
-    # Figure out the logging options so that can start before anything else.
-    # TODO: Eventually add a verify_string_list method. (gpgmailer issue 20)
-    config['log_level'] = config_helper.verify_string_exists(config_file, 'log_level')
+    config['log_level'] = config_helper.verify_log_level(config_parser)
 
-    # Create logging directory.  drwxr-x--- batwatch batwatch
-    log_mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP
-    # TODO: Look into defaulting the logging to the console until the program gets more
-    #   bootstrapped. (gpgmailer issue 18)
-    print('Creating logging directory %s.' % LOG_DIR)
-    if not os.path.isdir(LOG_DIR):
-        # Will throw exception if directory cannot be created.
-        os.makedirs(LOG_DIR, log_mode)
-    os.chown(LOG_DIR, program_uid, program_gid)
-    os.chmod(LOG_DIR, log_mode)
-
-    # Temporarily drop permissions and create the handle to the logger.
-    print('Configuring logger.')
-    os.setegid(program_gid)
-    os.seteuid(program_uid)
-    config_helper.configure_logger(os.path.join(LOG_DIR, LOG_FILE), config['log_level'])
-
-    logger = logging.getLogger(__name__)
-
-    logger.info('Verifying non-logging configuration.')
     config['main_loop_max_delay'] = config_helper.verify_number_within_range(
-        config_file, 'main_loop_max_delay', lower_bound=0)
-
+        config_parser, 'main_loop_max_delay', lower_bound=0, upper_bound=301)
     config['email_subject'] = config_helper.get_string_if_exists(
-        config_file, 'email_subject')
+        config_parser, 'email_subject')
 
     config['minimum_batteries'] = config_helper.verify_integer_within_range(
-        config_file, 'minimum_batteries', lower_bound=0)
+        config_parser, 'minimum_batteries', lower_bound=0)
 
-    return config, config_helper, logger
+    return config
+
+
+def get_user_id():
+    """Return (int): The user ID that the program runs as."""
+
+    try:
+        program_user = pwd.getpwnam(PROCESS_USERNAME)
+    except KeyError as key_error:
+        message = f'User {PROCESS_USERNAME} does not exist.'
+        raise InitializationException(message) from key_error
+
+    return program_user.pw_uid
 
 
 # TODO: Consider checking ACLs. (gpgmailer issue 22)
@@ -135,135 +90,46 @@ def verify_safe_file_permissions():
     """Crashes the application if unsafe file permissions exist on application configuration
     files.
     """
-    # The configuration file should be owned by root.
-    config_file_stat = os.stat(CONFIGURATION_PATHNAME)
-    if config_file_stat.st_uid != 0:
+    if not os.path.isfile(CONFIGURATION_PATHNAME):
         raise InitializationException(
-            'File %s must be owned by root.' % CONFIGURATION_PATHNAME)
+            f'Configuration file {CONFIGURATION_PATHNAME} does not exist. Quitting.')
+
+    # The configuration file should be owned by batwatch.
+    config_file_stat = os.stat(CONFIGURATION_PATHNAME)
+    if config_file_stat.st_uid != get_user_id():
+        raise InitializationException(
+            f'File {CONFIGURATION_PATHNAME} must be owned by {PROCESS_USERNAME}.')
     if bool(config_file_stat.st_mode & stat.S_IWGRP):
         raise InitializationException(
-            "File %s cannot be writable via the group access permission."
-            % CONFIGURATION_PATHNAME)
+            f'File {CONFIGURATION_PATHNAME} cannot be writable via the group access '
+            'permission.')
     if bool(config_file_stat.st_mode & (stat.S_IROTH | stat.S_IWOTH | stat.S_IXOTH)):
         raise InitializationException(
-            "File %s cannot have 'other user' access permissions set."
-            % CONFIGURATION_PATHNAME)
+            "File {CONFIGURATION_PATHNAME} cannot have 'other user' access permissions set.")
 
 
-def create_directory(system_path, program_dirs, uid, gid, mode):
-    """Creates directories if they do not exist and sets the specified ownership and
-    permissions.
-
-    system_path: The system path that the directories should be created under. These are
-      assumed to already exist. The ownership and permissions on these directories are not
-      modified.
-    program_dirs: A string representing additional directories that should be created under
-      the system path that should take on the following ownership and permissions.
-    uid: The system user ID that should own the directory.
-    gid: The system group ID that should be associated with the directory.
-    mode: The unix standard 'mode bits' that should be associated with the directory.
-    """
-    logger.info('Creating directory %s.', os.path.join(system_path, program_dirs))
-
-    path = system_path
-    for directory in program_dirs.strip('/').split('/'):
-        path = os.path.join(path, directory)
-        if not os.path.isdir(path):
-            # Will throw exception if file cannot be created.
-            os.makedirs(path, mode)
-        os.chown(path, uid, gid)
-        os.chmod(path, mode)
-
-
-def drop_permissions_forever(uid, gid):
-    """Drops escalated permissions forever to the specified user and group.
-
-    uid: The system user ID to drop to.
-    gid: The system group ID to drop to.
-    """
-    logger.info('Dropping permissions for user %s.', PROCESS_USERNAME)
-    os.initgroups(PROCESS_USERNAME, gid)
-    os.setgid(gid)
-    os.setuid(uid)
-
-
-def sig_term_handler(signal, stack_frame):
-    """Signal handler for SIGTERM. Quits when SIGTERM is received.
-
-    signal: Object representing the signal thrown.
-    stack_frame: Represents the stack frame.
-    """
-    logger.info('SIGTERM received. Quitting.')
-    sys.exit(0)
-
-
-def setup_daemon_context(log_file_handle, program_uid, program_gid):
-    """Creates the daemon context. Specifies daemon permissions, PID file information, and
-    the signal handler.
-
-    log_file_handle: The file handle to the log file.
-    program_uid: The system user ID that should own the daemon process.
-    program_gid: The system group ID that should be assigned to the daemon process.
-    Returns the daemon context.
-    """
-    daemon_context = daemon.DaemonContext(
-        working_directory='/',
-        pidfile=pidlockfile.PIDLockFile(
-            os.path.join(SYSTEM_PID_DIR, PROGRAM_PID_DIRS, PID_FILE)),
-        umask=PROGRAM_UMASK,
-    )
-
-    daemon_context.signal_map = {
-        signal.SIGTERM: sig_term_handler,
-    }
-
-    daemon_context.files_preserve = [log_file_handle]
-
-    # Set the UID and GID to 'batwatch' user and group.
-    daemon_context.uid = program_uid
-    daemon_context.gid = program_gid
-
-    return daemon_context
-
-
-def main():
+def start():
     """The parent function for the entire program. It loads and verifies configuration,
-    daemonizes, and starts the main program loop.
+    initializes the main program class, and calls its entry function.
     """
-    os.umask(PROGRAM_UMASK)
-    program_uid, program_gid = get_user_and_group_ids()
-    global logger
-    config, config_helper, logger = read_configuration_and_create_logger(
-        program_uid, program_gid)
+    confighelper.ConfigHelper.configure_logger()
+    logger = logging.getLogger(__name__)
 
     try:
         verify_safe_file_permissions()
+        config = read_configuration()
+        logger.setLevel(config['log_level'])
 
-        # Re-establish root permissions to create required directories.
-        os.seteuid(os.getuid())
-        os.setegid(os.getgid())
-
-        # Non-root users cannot create files in /run, so create a directory that can be
-        #   written to. Full access to user only.  drwx------ batwatch batwatch
-        create_directory(SYSTEM_PID_DIR, PROGRAM_PID_DIRS, program_uid, program_gid,
-                         stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
-
-        # Configuration has been read and directories setup. Now drop permissions forever.
-        drop_permissions_forever(program_uid, program_gid)
-
-        daemon_context = setup_daemon_context(
-            config_helper.get_log_file_handle(), program_uid, program_gid)
-
-        logger.info('Daemonizing...')
-        with daemon_context:
-            logger.debug('Initializing BatWatch.')
-            batwatcher = batwatch.BatWatch(config)
-            batwatcher.start_monitoring()
+        logger.debug('Initializing BatWatch.')
+        batwatcher = batwatch.BatWatch(config)
+        sdnotify.SystemdNotifier().notify('READY=1')
+        batwatcher.start_monitoring()
 
     except Exception as exception:
-        logger.critical('Fatal %s: %s\n%s', type(exception).__name__, str(exception),
-                        traceback.format_exc())
+        logger.critical(
+            f'Fatal {type(exception).__name__}: {str(exception)}\n{traceback.format_exc()}')
         raise exception
 
-if __name__ == "__main__":
-    main()
+
+if __name__ == '__main__':
+    start()

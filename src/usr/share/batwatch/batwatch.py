@@ -1,4 +1,4 @@
-# Copyright 2018-2024 Joel Allen Luellwitz and Emily Frost
+# Copyright 2018-2026 Joel Allen Luellwitz and Emily Frost
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,14 +19,17 @@ monitor.
 
 __all__ = ['BatWatch']
 __author__ = 'Joel Luellwitz, Emily Frost, and Brittney Scaccia'
-__version__ = '0.8'
+__version__ = '0.9'
 
 import logging
 import random
+import signal
 import time
 import traceback
-from pydbus import SystemBus
+
 import gpgmailmessage
+from pydbus import SystemBus
+import sdnotify
 
 UPOWER_BUS_NAME = 'org.freedesktop.UPower'
 UPOWER_DEVICE_STATE_CHARGING = 1
@@ -41,19 +44,20 @@ NO_BATTERY, DISCHARGING, CHARGING, FULLY_CHARGED = range(4)
 # This list is built with insert instead of statically to avoid maintaining two lists with
 #   consistent ordering.
 CHARGE_STATUS_LIST = []
-CHARGE_STATUS_LIST.insert(NO_BATTERY, "No Battery")
-CHARGE_STATUS_LIST.insert(DISCHARGING, "Discharging")
-CHARGE_STATUS_LIST.insert(CHARGING, "Charging")
-CHARGE_STATUS_LIST.insert(FULLY_CHARGED, "Fully Charged")
+CHARGE_STATUS_LIST.insert(NO_BATTERY, 'No Battery')
+CHARGE_STATUS_LIST.insert(DISCHARGING, 'Discharging')
+CHARGE_STATUS_LIST.insert(CHARGING, 'Charging')
+CHARGE_STATUS_LIST.insert(FULLY_CHARGED, 'Fully Charged')
 
 
 class CompositeStatus():
     """Stores state information for multiple batteries in an easily comparable object."""
+
     def __init__(self, battery_count, charge_status):
         """Constructor.
 
-        battery_count: The number of batteries in the system.
-        charge_status: The overall charging status of the system.
+        battery_count (int): The number of batteries in the system.
+        charge_status (int): The overall charging status of the system.
         """
         self.battery_count = battery_count
         self.charge_status = charge_status
@@ -68,8 +72,7 @@ class CompositeStatus():
                 battery_word = 'battery'
 
             english_status = CHARGE_STATUS_LIST[self.charge_status]
-            english_representation = '%s %s %s' % (
-                self.battery_count, battery_word, english_status)
+            english_representation = f'{self.battery_count} {battery_word} {english_status}'
 
         return english_representation
 
@@ -88,9 +91,10 @@ class BatWatch():
     def __init__(self, config):
         """Constructor.
 
-        config: Dictionary containing BatWatch configuration details.
+        config (dict): Dictionary containing BatWatch configuration details.
         """
         self.logger = logging.getLogger(__name__)
+        self.terminate = False
         self.system_bus = SystemBus()
         self.upower_bus = SystemBus().get(UPOWER_BUS_NAME)
 
@@ -98,21 +102,20 @@ class BatWatch():
             self.prior_status = self._get_composite_status()
         except Exception as exception:
             self.logger.error(
-                "Cannot read battery composite status. Will try again in one second. "
-                "%s: %s\n%s",
-                type(exception).__name__, str(exception), traceback.format_exc()
+                'Cannot read battery composite status. Will try again in one second. '
+                f'{type(exception).__name__}: {exception}\n{traceback.format_exc()}'
             )
             try:
                 time.sleep(1)
                 self.prior_status = self._get_composite_status()
             except Exception as exception2:
                 self.logger.error(
-                    "Cannot read battery composite status. Will try again in 10 seconds. "
-                    "%s: %s\n%s",
-                    type(exception2).__name__, str(exception2), traceback.format_exc()
-                )
+                    'Cannot read battery composite status. Will try again in 10 seconds. '
+                    f'{type(exception2).__name__}: {exception2}\n{traceback.format_exc()}')
                 time.sleep(10)
                 self.prior_status = self._get_composite_status()
+
+        signal.signal(signal.SIGTERM, self._sig_term_handler)
 
         self.config = config
 
@@ -124,21 +127,21 @@ class BatWatch():
 
         self._report_initial_state_deviations()
 
-        while True:
+        while not self.terminate:
             try:
                 current_status = self._get_composite_status()
                 if self.prior_status != current_status:
                     if self.prior_status.battery_count > current_status.battery_count \
                        or self.prior_status.charge_status > current_status.charge_status:
-                        self.logger.warning('Battery state changed from %s to %s.',
-                                            self.prior_status, current_status)
+                        self.logger.warning('Battery state changed from '
+                                            f'{self.prior_status} to {current_status}.')
                     else:
-                        self.logger.info('Battery state changed from %s to %s.',
-                                         self.prior_status, current_status)
+                        self.logger.info(f'Battery state changed from {self.prior_status} '
+                                         f'to {current_status}.')
 
                     email_text = "Batwatch detected a change in your device's battery " \
-                        "status:\n\nThe previous status was %s. The new status is %s." % (
-                            self.prior_status, current_status)
+                        f'status:\n\nThe previous status was {self.prior_status}. The new ' \
+                        f'status is {current_status}.'
                     self._send_email(email_text)
                     self.prior_status = current_status
                 else:
@@ -146,23 +149,32 @@ class BatWatch():
 
             except Exception as exception:
                 self.logger.error(
-                    "Unexpected error. %s: %s\n%s",
-                    type(exception).__name__, str(exception), traceback.format_exc()
-                )
+                    f'Unexpected error. {type(exception).__name__}: {exception}\n'
+                    f'{traceback.format_exc()}')
 
             # Delay for a random amount of time to make BatWatch harder to fingerprint.
             delay = random.uniform(0, self.config['main_loop_max_delay'])
             time.sleep(delay)
+            sdnotify.SystemdNotifier().notify('WATCHDOG=1')
+
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+
+    def _sig_term_handler(self, _signal, _stack_frame):
+        """Signal handler for SIGTERM. Quits when SIGTERM is received.
+
+        _signal: Object representing the signal thrown.
+        _stack_frame: Represents the stack frame.
+        """
+        self.terminate = True
 
     def _get_composite_status(self):
         """Get status information about batteries connected to the device Batwatch is running
         on, including the charge status. For a description of charge status, refer to the
         project README.
 
-        returns: CompositeStatus describing the count and overall charge status of the
+        Return (CompositeStatus): Describes the count and overall charge status of the
           batteries.
         """
-
         device_names = self.upower_bus.EnumerateDevices()
 
         batteries = []
@@ -194,7 +206,7 @@ class BatWatch():
         return CompositeStatus(len(batteries), charge_status)
 
     def _report_initial_state_deviations(self):
-        """ Report any deviations from the expected initial state. """
+        """Report any deviations from the expected initial state."""
 
         try:
             initialization_email = []
@@ -213,17 +225,14 @@ class BatWatch():
 
         except Exception as exception:
             self.logger.error(
-                "Error evaluating the initial state. Skipping the initial state e-mail. "
-                "%s: %s\n%s",
-                type(exception).__name__, str(exception), traceback.format_exc()
-            )
+                'Error evaluating the initial state. Skipping the initial state e-mail. '
+                f'{type(exception).__name__}: {exception}\n{traceback.format_exc()}')
 
     def _send_email(self, body_text):
         """Sends an e-mail.
 
-        body_text: The text for the e-mail to be sent.
+        body_text (str): The text for the e-mail to be sent.
         """
-
         email = gpgmailmessage.GpgMailMessage()
 
         # Get subject from configuration or else leave blank for gpgmailer default.
